@@ -99,7 +99,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             elif "state" not in dev_state:
                 dev_state["state"] = False
 
-        _LOGGER.info(f"[调光调色灯] state={dev_state['state']}, brightness={bri}, color_temp={ct}")
+        _LOGGER.debug(f"[调光调色灯] state={dev_state['state']}, brightness={bri}, color_temp={ct}")
 
     def _parse_status_light(self, dev_state: dict, raw_status: dict) -> None:
         """解析单色普通灯状态 (deviceType 102, 501)
@@ -121,7 +121,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 dev_state["state"] = value1 == 0
             elif "state" not in dev_state:
                 dev_state["state"] = False
-        _LOGGER.info(f"[单色灯] state={dev_state['state']}")
+        _LOGGER.debug(f"[单色灯] state={dev_state['state']}")
 
     def _parse_status_cct_light_strip(self, dev_state: dict, raw_status: dict) -> None:
         """解析色温灯带状态 (deviceType 503)
@@ -164,7 +164,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 ct = 6500
             dev_state["color_temp"] = ct
 
-        _LOGGER.info(f"[色温灯带] state={dev_state.get('state')}, brightness={dev_state.get('brightness')}, color_temp={dev_state.get('color_temp')}")
+        _LOGGER.debug(f"[色温灯带] state={dev_state.get('state')}, brightness={dev_state.get('brightness')}, color_temp={dev_state.get('color_temp')}")
 
     def _parse_status_dimmable_light(self, dev_state: dict, raw_status: dict) -> None:
         """解析可调光灯状态 (deviceType 502)
@@ -194,7 +194,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             if bri == 0:
                 dev_state["state"] = False
 
-        _LOGGER.info(f"[可调光灯] state={dev_state.get('state')}, brightness={dev_state.get('brightness')}")
+        _LOGGER.debug(f"[可调光灯] state={dev_state.get('state')}, brightness={dev_state.get('brightness')}")
 
     def _parse_status_temp_humidity_sensor(self, dev_state: dict, raw_status: dict) -> None:
         """解析温湿度传感器状态 (deviceType 300, subType=491)
@@ -236,7 +236,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 dev_state["battery"] = bat
 
         dev_state["state"] = True
-        _LOGGER.info(f"[温湿度传感器] temp={dev_state.get('temperature')}, humidity={dev_state.get('humidity')}, battery={dev_state.get('battery')}")
+        _LOGGER.debug(f"[温湿度传感器] temp={dev_state.get('temperature')}, humidity={dev_state.get('humidity')}, battery={dev_state.get('battery')}")
 
     def _parse_status_door_window_sensor(self, dev_state: dict, raw_status: dict) -> None:
         """解析门窗传感器状态 (deviceType 46)
@@ -259,7 +259,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 dev_state["battery"] = value4
 
         dev_state["state"] = True
-        _LOGGER.info(f"[门窗传感器] door_state={'OPEN' if dev_state.get('door_state') else 'CLOSED'}, battery={dev_state.get('battery')}%")
+        _LOGGER.debug(f"[门窗传感器] door_state={'OPEN' if dev_state.get('door_state') else 'CLOSED'}, battery={dev_state.get('battery')}%")
 
     def _parse_status_motion_sensor(self, dev_state: dict, raw_status: dict) -> None:
         """解析人体传感器状态 (deviceType 26)
@@ -289,7 +289,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 dev_state["battery"] = value4
 
         dev_state["state"] = True
-        _LOGGER.info(f"[人体传感器] motion_detected={dev_state.get('motion_detected')}, battery={dev_state.get('battery')}%")
+        _LOGGER.debug(f"[人体传感器] motion_detected={dev_state.get('motion_detected')}, battery={dev_state.get('battery')}%")
 
     async def _schedule_motion_reset(self, device_id: str) -> None:
         """安排人体传感器状态重置"""
@@ -300,7 +300,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             state = self.device_states.get(device_id)
             if state and state.get("motion_detected"):
                 state["motion_detected"] = False
-                _LOGGER.info(f"[人体传感器] {device_id[:12]}... 延时{self.MOTION_RESET_DELAY}秒后恢复为未触发")
+                _LOGGER.debug(f"[人体传感器] {device_id[:12]}... 延时{self.MOTION_RESET_DELAY}秒后恢复为未触发")
                 self.async_update_listeners()
         
         self._motion_reset_tasks[device_id] = asyncio.create_task(reset_motion())
@@ -320,7 +320,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             state = self.device_states.get(device_id)
             if state and state.get("state"):
                 state["state"] = False
-                _LOGGER.info(f"[紧急按钮] {device_id[:12]}... 延时{self.EMERGENCY_RESET_DELAY}秒后恢复为正常")
+                _LOGGER.debug(f"[紧急按钮] {device_id[:12]}... 延时{self.EMERGENCY_RESET_DELAY}秒后恢复为正常")
                 self.async_update_listeners()
 
         self._emergency_reset_tasks[device_id] = asyncio.create_task(reset_emergency())
@@ -352,7 +352,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 dev_state["battery"] = value4
 
         dev_state["state"] = True
-        _LOGGER.info(f"[烟雾传感器] smoke_detected={dev_state.get('smoke_detected')}, battery={dev_state.get('battery')}%")
+        _LOGGER.debug(f"[烟雾传感器] smoke_detected={dev_state.get('smoke_detected')}, battery={dev_state.get('battery')}%")
 
     def _parse_status_emergency_button(self, dev_state: dict, raw_status: dict, device_id: str = None) -> None:
         """解析紧急按钮状态 (deviceType 56)
@@ -378,7 +378,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             except (TypeError, ValueError):
                 dev_state["battery"] = value4
 
-        _LOGGER.info(f"[紧急按钮] state={'TRIGGERED' if dev_state.get('state') else 'NORMAL'}, battery={dev_state.get('battery')}%")
+        _LOGGER.debug(f"[紧急按钮] state={'TRIGGERED' if dev_state.get('state') else 'NORMAL'}, battery={dev_state.get('battery')}%")
 
     def _parse_status_water_leak_sensor(self, dev_state: dict, raw_status: dict) -> None:
         """解析水浸探测器状态 (deviceType 54)
@@ -401,7 +401,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 dev_state["battery"] = value4
 
         dev_state["state"] = True
-        _LOGGER.info(f"[水浸探测器] water_leak_detected={dev_state.get('water_leak_detected')}, battery={dev_state.get('battery')}%")
+        _LOGGER.debug(f"[水浸探测器] water_leak_detected={dev_state.get('water_leak_detected')}, battery={dev_state.get('battery')}%")
 
     def _parse_status_fan_coil_ac(self, dev_state: dict, raw_status: dict) -> None:
         """解析风机盘管空调状态 (deviceType 36)
@@ -436,7 +436,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             except (TypeError, ValueError):
                 dev_state["temperature"] = value4
 
-        _LOGGER.info(f"[空调] state={dev_state.get('state')}, mode={dev_state.get('ac_mode')}, fan_speed={dev_state.get('fan_speed')}, temperature={dev_state.get('temperature')}")
+        _LOGGER.debug(f"[空调] state={dev_state.get('state')}, mode={dev_state.get('ac_mode')}, fan_speed={dev_state.get('fan_speed')}, temperature={dev_state.get('temperature')}")
     
     def _parse_status_curtain(self, dev_state: dict, raw_status: dict) -> None:
         """解析百分比窗帘状态 (deviceType 34)
@@ -464,7 +464,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         else:
             dev_state["state"] = False
         
-        _LOGGER.info(f"[窗帘] state={dev_state['state']}, position={position}")
+        _LOGGER.debug(f"[窗帘] state={dev_state['state']}, position={position}")
     
     def _parse_status_switch(self, dev_state: dict, raw_status: dict) -> None:
         """解析开关状态 (deviceType 135, 136)
@@ -490,7 +490,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             else:
                 dev_state["state"] = False
         
-        _LOGGER.info(f"[开关] state={dev_state['state']}")
+        _LOGGER.debug(f"[开关] state={dev_state['state']}")
     
     def _parse_status_door_lock(self, dev_state: dict, raw_status: dict) -> None:
         """解析智能门锁状态 (deviceType 522, classId 463)
@@ -516,7 +516,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             dev_state["lithium_battery_setup"] = lithium_battery.get("isSetupBattery") == "on"
         
         dev_state["state"] = dev_state.get("lock_state", False)
-        _LOGGER.info(f"[智能门锁] lock_state={dev_state.get('lock_state')}, door_state={dev_state.get('door_state')}, dry_battery={dev_state.get('dry_battery_level')}%, lithium_battery={dev_state.get('lithium_battery_level')}%")
+        _LOGGER.debug(f"[智能门锁] lock_state={dev_state.get('lock_state')}, door_state={dev_state.get('door_state')}, dry_battery={dev_state.get('dry_battery_level')}%, lithium_battery={dev_state.get('lithium_battery_level')}%")
 
     def _parse_doorbell_event(self, dev_state: dict, raw_status: dict) -> None:
         """解析门铃和开锁事件 (cmd=352)
@@ -534,23 +534,23 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             dev_state["doorbell_ring"] = True
             dev_state["doorbell_url"] = value.get("url")
             dev_state["doorbell_ip"] = value.get("doorbell_local_Ip")
-            _LOGGER.info(f"[门铃事件] deviceId={raw_status.get('deviceId')}, url={value.get('url')}, ip={value.get('doorbell_local_Ip')}")
+            _LOGGER.debug(f"[门铃事件] deviceId={raw_status.get('deviceId')}, url={value.get('url')}, ip={value.get('doorbell_local_Ip')}")
             import asyncio
             asyncio.create_task(self._schedule_doorbell_reset(raw_status.get("deviceId", "")))
         
         elif server == "doorbell" and name == "answered":
             dev_state["doorbell_answered"] = True
-            _LOGGER.info(f"[门铃接听] deviceId={raw_status.get('deviceId')}, uid={value.get('uid')}")
+            _LOGGER.debug(f"[门铃接听] deviceId={raw_status.get('deviceId')}, uid={value.get('uid')}")
         
         elif server == "doorbell" and name == "bye":
             dev_state["doorbell_answered"] = False
-            _LOGGER.info(f"[门铃挂断] deviceId={raw_status.get('deviceId')}")
+            _LOGGER.debug(f"[门铃挂断] deviceId={raw_status.get('deviceId')}")
         
         elif server == "doorLock" and name == "unlockEvent":
             dev_state["unlock_event"] = True
             dev_state["unlock_type"] = value.get("type")
             dev_state["unlock_user_id"] = value.get("userId")
-            _LOGGER.info(f"[开锁事件] deviceId={raw_status.get('deviceId')}, type={value.get('type')}, userId={value.get('userId')}")
+            _LOGGER.debug(f"[开锁事件] deviceId={raw_status.get('deviceId')}, type={value.get('type')}, userId={value.get('userId')}")
             import asyncio
             asyncio.create_task(self._schedule_unlock_reset(raw_status.get("deviceId", "")))
 
@@ -560,7 +560,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         state = self.device_states.get(device_id)
         if state and state.get("doorbell_ring"):
             state["doorbell_ring"] = False
-            _LOGGER.info(f"[门铃事件] {device_id[:12]}... 延时5秒后恢复")
+            _LOGGER.debug(f"[门铃事件] {device_id[:12]}... 延时5秒后恢复")
             self.async_set_updated_data(self.device_states)
 
     async def _schedule_unlock_reset(self, device_id: str) -> None:
@@ -569,7 +569,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         state = self.device_states.get(device_id)
         if state and state.get("unlock_event"):
             state["unlock_event"] = False
-            _LOGGER.info(f"[开锁事件] {device_id[:12]}... 延时5秒后恢复")
+            _LOGGER.debug(f"[开锁事件] {device_id[:12]}... 延时5秒后恢复")
             self.async_set_updated_data(self.device_states)
 
     def _parse_status_generic(self, dev_state: dict, raw_status: dict) -> None:
@@ -587,7 +587,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         dev_state["color_temp"] = raw_status.get("value3", props.get("colortemp"))
         dev_state["position"] = raw_status.get("value1", props.get("percent"))
         
-        _LOGGER.info(f"[通用设备] state={dev_state['state']}")
+        _LOGGER.debug(f"[通用设备] state={dev_state['state']}")
 
     def _parse_clothes_horse_state(self, dev_state: dict, raw_status: dict) -> None:
         """解析晾衣架 cmd=99 状态推送。"""
@@ -616,7 +616,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             if not await self.https_client.ensure_login():
                 raise UpdateFailed("HTTPS登录失败")
 
-            _LOGGER.info("第一步：拉取设备列表...")
+            _LOGGER.debug("第一步：拉取设备列表...")
             device_status_data = await self.https_client.fetch_device_status()
             if not device_status_data:
                 raise UpdateFailed("获取设备列表失败")
@@ -631,7 +631,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 # 过滤隐藏类别设备（MIXPAD_GATEWAY/MIX_SWITCH/BACH_SWITCH/WIFI_CAMERA/SMART_REMOTE/MIXPAD_4WAY_BASE）
                 category = classify_device(device)
                 if is_hidden_category(category):
-                    _LOGGER.info(f"[过滤] 跳过隐藏类别设备: {device_id} category={category.name}")
+                    _LOGGER.debug(f"[过滤] 跳过隐藏类别设备: {device_id} category={category.name}")
                     continue
 
                 self.devices[device_id] = device
@@ -665,14 +665,14 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
             _LOGGER.info(f"设备列表拉取完成，共 {len(self.devices)} 个设备")
 
-            _LOGGER.info("第二步：通过 getDeviceDesc API 拉取全量设备状态...")
+            _LOGGER.debug("第二步：通过 getDeviceDesc API 拉取全量设备状态...")
             device_desc_data = await self.https_client.fetch_device_desc(last_update_time=0)
 
             if device_desc_data:
                 device_desc_status_map = self.https_client.parse_device_desc(device_desc_data)
 
                 if device_desc_status_map:
-                    _LOGGER.info(f"getDeviceDesc 解析到 {len(device_desc_status_map)} 个设备状态，开始更新...")
+                    _LOGGER.debug(f"getDeviceDesc 解析到 {len(device_desc_status_map)} 个设备状态，开始更新...")
 
                     for device_id, status_info in device_desc_status_map.items():
                         matched_device_id = None
@@ -699,7 +699,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                             new_state = {**old_state, **status_info}
                             self.device_states[matched_device_id] = new_state
                         else:
-                            _LOGGER.info(f"getDeviceDesc 中的设备 {device_id} 未匹配到设备列表中的设备")
+                            _LOGGER.debug(f"getDeviceDesc 中的设备 {device_id} 未匹配到设备列表中的设备")
                 else:
                     _LOGGER.warning("getDeviceDesc 未解析到任何设备状态")
             else:
@@ -731,7 +731,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 elif category == DeviceCategory.DOOR_LOCK:
                     self._parse_status_door_lock(state, {"properties": state.get("properties", {})})
                 
-                _LOGGER.info(
+                _LOGGER.debug(
                     f"  设备: name={dev.get('device_name')}, device_id={device_id}, "
                     f"deviceType={dev.get('device_type_raw')}, uid={dev.get('uid')}, "
                     f"online={state.get('online')}, state={state.get('state')}"
@@ -789,7 +789,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
         def on_status_update(device_id: str, raw_status: dict):
             """处理MQTT状态推送，根据设备类型调用对应的解析方法"""
-            _LOGGER.info(f"收到MQTT状态更新: deviceId={device_id}, raw_status={raw_status}")
+            _LOGGER.debug(f"收到MQTT状态更新: deviceId={device_id}, raw_status={raw_status}")
             
             # 多重匹配逻辑
             matched_device_id = None
@@ -825,7 +825,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             sub_type = device_info.get("sub_device_type") if device_info else None
             category = classify_device(device_info) if device_info else DeviceCategory.UNKNOWN
 
-            _LOGGER.info(f"[设备类型] deviceType={device_type}, category={category.name}, deviceId={matched_device_id}")
+            _LOGGER.debug(f"[设备类型] deviceType={device_type}, category={category.name}, deviceId={matched_device_id}")
 
             # 晾衣架专用协议（cmd=99 推送，带 is_clothes_horse 标志）
             if raw_status.get("is_clothes_horse"):
@@ -889,7 +889,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
             # 通知HA刷新实体状态
             self.hass.async_add_job(self.async_set_updated_data, self.device_states)
-            _LOGGER.info(f"[{matched_device_id}] MQTT状态同步完成: state={dev_state.get('state')}, bri={dev_state.get('brightness')}, ct={dev_state.get('color_temp')}, pos={dev_state.get('position')}")
+            _LOGGER.debug(f"[{matched_device_id}] MQTT状态同步完成: state={dev_state.get('state')}, bri={dev_state.get('brightness')}, ct={dev_state.get('color_temp')}, pos={dev_state.get('position')}")
 
         self.ssl_client = SSLClient(
             hass=self.hass,
@@ -912,7 +912,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 continue
             try:
                 await self.ssl_client.send_clothes_horse_query(device_id=device_id)
-                _LOGGER.info(f"[晾衣架初始查询] 已下发 cmd=100 device={device_id}")
+                _LOGGER.debug(f"[晾衣架初始查询] 已下发 cmd=100 device={device_id}")
             except Exception as e:
                 _LOGGER.warning(f"[晾衣架初始查询] {device_id} 失败: {e}")
 
@@ -932,7 +932,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
         device_uid = device.get("uid", "")
         category = classify_device(device)
-        _LOGGER.info(f"打开设备: {device_id}, category={category.name}, uid={device_uid}")
+        _LOGGER.debug(f"打开设备: {device_id}, category={category.name}, uid={device_uid}")
 
         result = False
         if category == DeviceCategory.DIM_COLOR_LIGHT:
@@ -943,7 +943,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 cur_bri = 255
             if cur_ct == 0:
                 cur_ct = 2700
-            _LOGGER.info(f"[DIM_COLOR_LIGHT] 开/调节: bri={cur_bri}, ct={cur_ct}K")
+            _LOGGER.debug(f"[DIM_COLOR_LIGHT] 开/调节: bri={cur_bri}, ct={cur_ct}K")
             result = await self.ssl_client.send_control_light_colortemp(device_id, device_uid, cur_ct, brightness=cur_bri)
         elif category in (DeviceCategory.MONO_LIGHT, DeviceCategory.DIMMABLE_LIGHT):
             # type=501/502 使用 set property 格式
@@ -984,11 +984,11 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
         device_uid = device.get("uid", "")
         category = classify_device(device)
-        _LOGGER.info(f"关闭设备: {device_id}, category={category.name}, uid={device_uid}")
+        _LOGGER.debug(f"关闭设备: {device_id}, category={category.name}, uid={device_uid}")
 
         result = False
         if category == DeviceCategory.DIM_COLOR_LIGHT:
-            _LOGGER.info(f"[DIM_COLOR_LIGHT] 关闭: order=off")
+            _LOGGER.debug(f"[DIM_COLOR_LIGHT] 关闭: order=off")
             result = await self.ssl_client.send_control_light(device_id, device_uid, False)
         elif category in (DeviceCategory.MONO_LIGHT, DeviceCategory.DIMMABLE_LIGHT):
             result = await self.ssl_client.send_control_switch(device_id, device_uid, False)
@@ -1018,7 +1018,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             _LOGGER.error(f"设备不存在: {device_id}")
             return False
         device_uid = device.get("uid", "")
-        _LOGGER.info(f"设置窗帘位置: {device_id} position={position}")
+        _LOGGER.debug(f"设置窗帘位置: {device_id} position={position}")
         result = await self.ssl_client.send_control_cover(device_id, device_uid, position)
         if result:
             self.device_states.setdefault(device_id, {})["position"] = position
@@ -1036,7 +1036,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             _LOGGER.error(f"设备不存在: {device_id}")
             return False
         device_uid = device.get("uid", "")
-        _LOGGER.info(f"停止窗帘: {device_id}")
+        _LOGGER.debug(f"停止窗帘: {device_id}")
         return await self.ssl_client.send_control_cover(device_id, device_uid, "stop")
 
     async def async_set_brightness(self, device_id: str, brightness: int) -> bool:
@@ -1053,7 +1053,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
         if category == DeviceCategory.DIMMABLE_LIGHT:
             brightness_percent = round(brightness)
-            _LOGGER.info(f"设置可调光灯亮度 {device_id} HA={brightness} → {brightness_percent}%")
+            _LOGGER.debug(f"设置可调光灯亮度 {device_id} HA={brightness} → {brightness_percent}%")
             result = await self.ssl_client.send_control_dimmable_light_brightness(device_id, uid, brightness_percent)
             if result:
                 self.device_states.setdefault(device_id, {})["brightness"] = brightness_percent
@@ -1068,10 +1068,10 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         device_type_raw = device.get("device_type_raw")
         if device_type_raw in (503,):
             brightness_255 = round(brightness * 255 / 100)
-            _LOGGER.info(f"下发色温灯带亮度 {device_id} 百分比={brightness} → 0-255={brightness_255}, color_temp={color_temp_k}K")
+            _LOGGER.debug(f"下发色温灯带亮度 {device_id} 百分比={brightness} → 0-255={brightness_255}, color_temp={color_temp_k}K")
             result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness_255)
         else:
-            _LOGGER.info(f"下发亮度 {device_id} bri={brightness} color_temp={color_temp_k}K (fast color temperature)")
+            _LOGGER.debug(f"下发亮度 {device_id} bri={brightness} color_temp={color_temp_k}K (fast color temperature)")
             result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness)
         if result:
             self.device_states.setdefault(device_id, {})["brightness"] = brightness
@@ -1094,10 +1094,10 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         device_type_raw = device.get("device_type_raw")
         if device_type_raw in (503,):
             brightness_255 = round(brightness * 255 / 100)
-            _LOGGER.info(f"设置色温 {color_temp_k}K, brightness(百分比)={brightness} → 0-255={brightness_255}")
+            _LOGGER.debug(f"设置色温 {color_temp_k}K, brightness(百分比)={brightness} → 0-255={brightness_255}")
             result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness_255)
         else:
-            _LOGGER.info(f"设置色温 {color_temp_k}K, brightness={brightness}")
+            _LOGGER.debug(f"设置色温 {color_temp_k}K, brightness={brightness}")
             result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness)
         if result:
             self.device_states.setdefault(device_id, {})["color_temp"] = color_temp_k
@@ -1158,7 +1158,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             "debugInfo": DEBUG_INFO,
         }
 
-        _LOGGER.info(f"下发空调控制 {device_id} value1={value1}, value2={value2}, value3={value3}, value4={value4}")
+        _LOGGER.debug(f"下发空调控制 {device_id} value1={value1}, value2={value2}, value3={value3}, value4={value4}")
         await self.ssl_client._send_packet(payload, self.ssl_client.session_key)
 
         dev_state = self.get_device_state(device_id)
@@ -1274,7 +1274,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                     if feature == "main_switch":
                         dev_state["state"] = (value == "on")
                 self.async_set_updated_data(self.device_states)
-            _LOGGER.info(f"[控制成功] {device_id} {ctrl_field}={value}")
+            _LOGGER.debug(f"[控制成功] {device_id} {ctrl_field}={value}")
         return result
 
     def get_device(self, device_id: str) -> Optional[Dict[str, Any]]:
@@ -1286,7 +1286,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     async def async_cleanup(self):
         if self.ssl_client:
             await self.ssl_client._disconnect()
-            _LOGGER.info("SSL连接已断开清理")
+            _LOGGER.debug("SSL连接已断开清理")
         if self.https_client and hasattr(self.https_client, "session"):
             await self.https_client._disconnect()
-            _LOGGER.info("HTTPS会话已清理")
+            _LOGGER.debug("HTTPS会话已清理")
