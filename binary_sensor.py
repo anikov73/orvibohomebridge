@@ -47,6 +47,8 @@ async def async_setup_entry(
             entities.append(OrviboSmokeSensor(coordinator, device))
         elif category == DeviceCategory.EMERGENCY_BUTTON:
             entities.append(OrviboEmergencyButton(coordinator, device))
+        elif category == DeviceCategory.WATER_LEAK_SENSOR:
+            entities.append(OrviboWaterLeakSensor(coordinator, device))
 
     async_add_entities(entities)
 
@@ -215,6 +217,34 @@ class OrviboEmergencyButton(CoordinatorEntity, BinarySensorEntity):
             "name": self._device.get("device_name", "Orvibo Emergency Button"),
             "manufacturer": MANUFACTURER,
             "model": "Emergency Button",
+            "sw_version": "1.0",
+        }
+
+
+class OrviboWaterLeakSensor(CoordinatorEntity, BinarySensorEntity):
+    """水浸探测器（deviceType=54）。"""
+
+    def __init__(self, coordinator: OrviboMeshCoordinator, device: dict):
+        super().__init__(coordinator)
+        self._device = device
+        self._device_id = device.get("device_id", "")
+        self._attr_unique_id = f"orvibohomebridge_water_leak_{self._device_id}"
+        self._attr_name = "水浸"
+        self._attr_device_class = BinarySensorDeviceClass.MOISTURE
+        self._attr_icon = "mdi:water"
+
+    @property
+    def is_on(self) -> Optional[bool]:
+        state = self.coordinator.get_device_state(self._device_id)
+        return state.get("water_leak_detected", False) if state else False
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, self._device_id)},
+            "name": self._device.get("device_name", "Orvibo Water Leak Sensor"),
+            "manufacturer": MANUFACTURER,
+            "model": "Water Leak Sensor",
             "sw_version": "1.0",
         }
 
