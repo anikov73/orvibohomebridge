@@ -916,7 +916,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                         break
 
             if not matched_device_id:
-                _LOGGER.warning(f"MQTT推送设备 {device_id} 未匹配本地设备")
+                _LOGGER.debug(f"MQTT推送设备 {device_id} 未匹配本地设备")
                 return
 
             dev_state = self.device_states[matched_device_id]
@@ -1003,7 +1003,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                     self._parse_status_generic(dev_state, raw_status)
 
             # 通知HA刷新实体状态
-            asyncio.create_task(self.async_set_updated_data(self.device_states))
+            self.hass.add_job(self.async_set_updated_data, self.device_states)
             _LOGGER.debug(f"[{matched_device_id}] MQTT状态同步完成: state={dev_state.get('state')}, bri={dev_state.get('brightness')}, ct={dev_state.get('color_temp')}, pos={dev_state.get('position')}")
 
         self.ssl_client = SSLClient(
