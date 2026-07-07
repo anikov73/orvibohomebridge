@@ -41,6 +41,7 @@ class DeviceCategory(Enum):
     CCT_LIGHT = "cct_light"                            # statusType=503 subDeviceType=461，0-10v色温灯
     TEMP_HUMIDITY_SENSOR = "temp_humidity_sensor"      # deviceTypeId=300 subType=491，温湿度传感器
     DOOR_WINDOW_SENSOR = "door_window_sensor"          # deviceTypeId=46，门窗传感器
+    FAST_MOVE_DIM_COLOR_LIGHT = "fast_move_dim_color_light"  # statusType=2, subDeviceType=6，fast move to level调光调色灯
     OTHER = "other"
 
 
@@ -220,6 +221,12 @@ _CATEGORY_INFO: Dict[DeviceCategory, CategoryInfo] = {
         description="deviceTypeId=46，门磁状态/电量",
         capabilities=("door_state", "battery"),
     ),
+    DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT: CategoryInfo(
+        category=DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT,
+        label="Fast Move调光调色灯",
+        description="statusType=2, subDeviceType=6，fast move to level协议，亮度+色温",
+        capabilities=("onoff", "brightness", "color_temp"),
+    ),
     DeviceCategory.OTHER: CategoryInfo(
         category=DeviceCategory.OTHER,
         label="其他设备",
@@ -329,6 +336,9 @@ def classify_device(device: Dict[str, Any]) -> DeviceCategory:
     sub_type = _safe_int(device.get("sub_device_type") or device.get("subDeviceType"))
 
     if device_type_raw is not None and device_type_raw in _DEVICE_TYPE_MAP:
+        # deviceType=38 且 subDeviceType=6 时，使用 fast move 协议
+        if device_type_raw == 38 and sub_type == 6:
+            return DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT
         return _DEVICE_TYPE_MAP[device_type_raw]
 
     # 特殊判断：device_type_raw=0 或 device_type_raw=None 但 sub_device_type=-2 且有亮度数据
@@ -343,6 +353,11 @@ def classify_device(device: Dict[str, Any]) -> DeviceCategory:
         device_name = device.get("device_name", "") or device.get("deviceName", "")
         if "调光" in device_name:
             return DeviceCategory.ZIGBEE_DIMMABLE_LIGHT
+
+    # 特殊判断：statusType=2, subDeviceType=6 为fast move调光调色灯
+    status_type = _safe_int(device.get("status_type") or device.get("statusType"))
+    if status_type == 2 and sub_type == 6:
+        return DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT
 
     ui_model = device.get("ui_model") or device.get("ui", {}).get("model") if isinstance(device.get("ui"), dict) else device.get("ui_model")
     if isinstance(ui_model, str) and ui_model in _UI_MODEL_MAP:

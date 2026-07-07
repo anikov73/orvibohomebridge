@@ -64,16 +64,20 @@ class OrviboLight(CoordinatorEntity, LightEntity):
                 device_type_raw = 0
                 _LOGGER.info(f"通过 sub_device_type=-2 和 value2 推断 device_type_raw=0")
         
+        # 优先通过 classify_device 判断（最准确）
+        category = classify_device(device)
+        
         # type=503 色温灯带亮度范围 0-100，type=502 可调光灯亮度范围 0-100，type=38 调光调色灯亮度范围 0-255，type=0 调光灯亮度范围 0-255
+        # FAST_MOVE_DIM_COLOR_LIGHT (subDeviceType=6) 亮度范围 0-255
         self._brightness_is_percent = (device_type_raw in (502, 503))
+        if category == DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT:
+            self._brightness_is_percent = False
 
         _LOGGER.info(f"灯光设备: {self._attr_name}, device_id={self._device_id}, ui_model={ui_model}, deviceType={device_type_raw} (type={type(device_type_raw)}), classId={class_id} (type={type(class_id)}), model={model}")
 
         is_dimmable = False
 
-        # 优先通过 classify_device 判断（最准确）
-        category = classify_device(device)
-        if category in (DeviceCategory.DIM_COLOR_LIGHT, DeviceCategory.DIMMABLE_LIGHT, DeviceCategory.CCT_LIGHT, DeviceCategory.ZIGBEE_DIMMABLE_LIGHT):
+        if category in (DeviceCategory.DIM_COLOR_LIGHT, DeviceCategory.DIMMABLE_LIGHT, DeviceCategory.CCT_LIGHT, DeviceCategory.ZIGBEE_DIMMABLE_LIGHT, DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT):
             is_dimmable = True
             _LOGGER.info(f"通过 classify_device 判断为调光灯: category={category}")
         # 通过 ui.model 判断
@@ -101,6 +105,14 @@ class OrviboLight(CoordinatorEntity, LightEntity):
                 self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
                 self._attr_color_mode = ColorMode.BRIGHTNESS
                 _LOGGER.info(f"设置为 BRIGHTNESS 模式: category={category}")
+            elif category == DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT:
+                self._attr_supported_color_modes = {ColorMode.COLOR_TEMP}
+                self._attr_color_mode = ColorMode.COLOR_TEMP
+                self._min_mireds = 167  # 6000K
+                self._max_mireds = 370  # 2700K
+                self._attr_min_color_temp_kelvin = 2700
+                self._attr_max_color_temp_kelvin = 6000
+                _LOGGER.info(f"设置为 COLOR_TEMP 模式 (Fast Move): category={category}")
             else:
                 self._attr_supported_color_modes = {ColorMode.COLOR_TEMP}
                 self._attr_color_mode = ColorMode.COLOR_TEMP

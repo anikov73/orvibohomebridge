@@ -101,6 +101,43 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
         _LOGGER.debug(f"[调光调色灯] state={dev_state['state']}, brightness={bri}, color_temp={ct}")
 
+    def _parse_status_fast_move_dim_color_light(self, dev_state: dict, raw_status: dict) -> None:
+        """解析Fast Move调光调色灯状态 (statusType 2, subDeviceType 6)
+        使用 value1/value2/value3 格式：
+        - value1=0 为开, value1=1 为关
+        - value2 为亮度 (0-255)
+        - value3 为色温 (mireds)
+        """
+        value1 = raw_status.get("value1")
+        value2 = raw_status.get("value2")
+        value3 = raw_status.get("value3")
+
+        if value1 is not None:
+            value1 = int(value1)
+            dev_state["state"] = value1 == 0
+
+        if value2 is not None:
+            value2 = int(value2)
+            if value2 < 0:
+                value2 = 0
+            elif value2 > 255:
+                value2 = 255
+            dev_state["brightness"] = value2
+            if value2 == 0:
+                dev_state["state"] = False
+
+        if value3 is not None:
+            value3 = int(value3)
+            if 150 <= value3 <= 400:
+                color_temp_k = 1000000 // value3
+                if color_temp_k < 2700:
+                    color_temp_k = 2700
+                elif color_temp_k > 6000:
+                    color_temp_k = 6000
+                dev_state["color_temp"] = color_temp_k
+
+        _LOGGER.debug(f"[Fast Move调光调色灯] state={dev_state.get('state')}, brightness={dev_state.get('brightness')}%, color_temp={dev_state.get('color_temp')}K, raw_value2={value2}, raw_value3={value3}")
+
     def _parse_status_light(self, dev_state: dict, raw_status: dict) -> None:
         """解析单色普通灯状态 (deviceType 102, 501)
         核心控制参数: value1开关 (value1==0 为开)
@@ -221,9 +258,8 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 value2 = 0
             elif value2 > 255:
                 value2 = 255
-            brightness_percent = round(value2 * 100 / 255)
-            dev_state["brightness"] = brightness_percent
-            if brightness_percent == 0:
+            dev_state["brightness"] = value2
+            if value2 == 0:
                 dev_state["state"] = False
 
         _LOGGER.debug(f"[0-10v调光灯] state={dev_state.get('state')}, brightness={dev_state.get('brightness')}%, raw_value2={value2}")
@@ -901,7 +937,10 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             elif raw_status.get("cmd") == 352:
                 self._parse_doorbell_event(dev_state, raw_status)
             elif device_type == 38:
-                self._parse_status_light_colortemp(dev_state, raw_status)
+                if sub_type == 6:
+                    self._parse_status_fast_move_dim_color_light(dev_state, raw_status)
+                else:
+                    self._parse_status_light_colortemp(dev_state, raw_status)
             elif device_type == 502:
                 self._parse_status_dimmable_light(dev_state, raw_status)
             elif device_type == 0 and sub_type == -2:
@@ -944,6 +983,8 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                     self._parse_status_dimmable_light(dev_state, raw_status)
                 elif category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
                     self._parse_status_zigbee_dimmable_light(dev_state, raw_status)
+                elif category == DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT:
+                    self._parse_status_fast_move_dim_color_light(dev_state, raw_status)
                 elif category == DeviceCategory.TEMP_HUMIDITY_SENSOR:
                     self._parse_status_temp_humidity_sensor(dev_state, raw_status)
                 elif category == DeviceCategory.DOOR_WINDOW_SENSOR:
@@ -1023,8 +1064,19 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             # type=501/502 使用 set property 格式
             result = await self.ssl_client.send_control_switch(device_id, device_uid, True)
         elif category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
-            # type=0, subType=-2 使用 order=on/off + value1 格式
-            result = await self.ssl_client.send_control_light(device_id, device_uid, True)
+            # type=0, subType=-2 使用 set property 格式
+            result = await self.ssl_client.send_control_zigbee_dimmable_light_onoff(device_id, device_uid, True)
+        elif category == DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT:
+            dev_state = self.get_device_state(device_id) or {}
+            cur_bri = brightness if brightness is not None else dev_state.get("brightness", 0) or 0
+            cur_ct = color_temp if color_temp is not None else dev_state.get("color_temp", 0) or 0
+            if cur_bri == 0:
+                cur_bri = 255
+            if cur_ct == 0:
+                cur_ct = 2700
+            ct_mired = 1000000 // cur_ct if cur_ct > 0 else 370
+            _LOGGER.debug(f"[FAST_MOVE_DIM_COLOR_LIGHT] 开灯: bri={cur_bri}/255, ct={cur_ct}K ({ct_mired} mired)")
+            result = await self.ssl_client.send_control_fast_move_dim_color_light_onoff(device_id, device_uid, True, brightness=cur_bri, colortemp_mired=ct_mired)
         elif category == DeviceCategory.CCT_LIGHT:
             # statusType=503 使用 set property 格式
             result = await self.ssl_client.send_control_cct_light_onoff(device_id, device_uid, True)
@@ -1073,8 +1125,15 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         elif category in (DeviceCategory.MONO_LIGHT, DeviceCategory.DIMMABLE_LIGHT):
             result = await self.ssl_client.send_control_switch(device_id, device_uid, False)
         elif category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
-            # type=0, subType=-2 使用 order=on/off + value1 格式
-            result = await self.ssl_client.send_control_light(device_id, device_uid, False)
+            # type=0, subType=-2 使用 set property 格式
+            result = await self.ssl_client.send_control_zigbee_dimmable_light_onoff(device_id, device_uid, False)
+        elif category == DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT:
+            dev_state = self.get_device_state(device_id) or {}
+            cur_bri = dev_state.get("brightness", 0) or 0
+            cur_ct = dev_state.get("color_temp", 0) or 0
+            ct_mired = 1000000 // cur_ct if cur_ct > 0 else 370
+            _LOGGER.debug(f"[FAST_MOVE_DIM_COLOR_LIGHT] 关灯: bri={cur_bri}/255, ct={cur_ct}K ({ct_mired} mired)")
+            result = await self.ssl_client.send_control_fast_move_dim_color_light_onoff(device_id, device_uid, False, brightness=cur_bri, colortemp_mired=ct_mired)
         elif category == DeviceCategory.CCT_LIGHT:
             # statusType=503 使用 set property 格式
             result = await self.ssl_client.send_control_cct_light_onoff(device_id, device_uid, False)
@@ -1148,14 +1207,28 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             return result
 
         if category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
-            brightness_255 = min(int(brightness), 255)
-            if brightness_255 == 0:
-                brightness_255 = 1
-            _LOGGER.debug(f"设置Zigbee调光灯亮度 {device_id} HA={brightness} → 0-255={brightness_255}")
-            result = await self.ssl_client.send_control_light(device_id, uid, True, brightness=brightness_255)
+            brightness_percent = min(int(brightness), 100)
+            if brightness_percent == 0:
+                brightness_percent = 1
+            brightness_255 = round(brightness_percent * 255 / 100)
+            _LOGGER.debug(f"设置Zigbee调光灯亮度 {device_id} HA百分比={brightness} → 0-255={brightness_255}")
+            result = await self.ssl_client.send_control_zigbee_dimmable_light_brightness(device_id, uid, brightness_255)
             if result:
-                brightness_percent = round(brightness_255 * 100 / 255)
                 self.device_states.setdefault(device_id, {})["brightness"] = brightness_percent
+                self.device_states[device_id]["state"] = True
+                self.async_set_updated_data(self.device_states)
+            return result
+
+        if category == DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT:
+            brightness_255 = max(1, min(int(brightness), 255))
+            color_temp_k = self.device_states.get(device_id, {}).get("color_temp", 0) or 0
+            if color_temp_k == 0:
+                color_temp_k = 2700
+            ct_mired = 1000000 // color_temp_k if color_temp_k > 0 else 370
+            _LOGGER.debug(f"[FAST_MOVE_DIM_COLOR_LIGHT] 设置亮度 {device_id} HA_0-255={brightness} → 设备值={brightness_255}/255, ct={color_temp_k}K ({ct_mired} mired)")
+            result = await self.ssl_client.send_control_fast_move_dim_color_light_brightness(device_id, uid, brightness_255, colortemp_mired=ct_mired)
+            if result:
+                self.device_states.setdefault(device_id, {})["brightness"] = brightness_255
                 self.device_states[device_id]["state"] = True
                 self.async_set_updated_data(self.device_states)
             return result
@@ -1199,6 +1272,11 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         if category == DeviceCategory.CCT_LIGHT:
             _LOGGER.debug(f"下发色温灯色温 {device_id} {color_temp_k}K")
             result = await self.ssl_client.send_control_cct_light_colortemp(device_id, uid, color_temp_k)
+        elif category == DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT:
+            brightness_255 = self.device_states.get(device_id, {}).get("brightness", 255) or 255
+            ct_mired = 1000000 // color_temp_k if color_temp_k > 0 else 370
+            _LOGGER.debug(f"[FAST_MOVE_DIM_COLOR_LIGHT] 设置色温 {device_id} {color_temp_k}K ({ct_mired} mired), bri={brightness_255}/255")
+            result = await self.ssl_client.send_control_fast_move_dim_color_light_colortemp(device_id, uid, brightness_255, colortemp_mired=ct_mired)
         else:
             device_type_raw = device.get("device_type_raw")
             if device_type_raw in (503,):

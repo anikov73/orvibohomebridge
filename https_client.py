@@ -618,7 +618,18 @@ class HttpsClient:
                         v1 = int(value1)
                         initial_position = v1
                         initial_state = v1 > 0
-                elif device_type_raw in (38, 503):
+                elif device_type_raw == 503:
+                    if value1 is not None:
+                        initial_state = int(value1) == 0
+                    if value2 is not None and int(value2) >= 0:
+                        initial_brightness = int(value2)
+                    if value3 is not None and int(value3) > 0:
+                        ct = int(value3)
+                        if 150 <= ct <= 400:
+                            ct = 1000000 // ct
+                        initial_color_temp = ct
+                elif device_type_raw == 38:
+                    # deviceType=38: value2 是 0-255 原始亮度值
                     if value1 is not None:
                         initial_state = int(value1) == 0
                     if value2 is not None and int(value2) >= 0:

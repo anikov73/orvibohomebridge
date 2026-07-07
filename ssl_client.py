@@ -329,6 +329,90 @@ class SSLClient:
         await self._send_packet(payload, self.session_key)
         return True
 
+    async def send_control_zigbee_dimmable_light_onoff(self, device_id: str, device_uid: str, state: bool):
+        """Zigbee调光灯开关控制（set property 格式，适用于 deviceType=0, subDeviceType=-2）"""
+        await self.connect_and_login()
+        if not self.session_key or self.session_key == DEFAULT_KEY.encode("utf-8"):
+            _LOGGER.debug("会话密钥无效，无法下发")
+            return False
+        payload = HomemateJsonData.ssl_control_zigbee_dimmable_light_onoff(
+            username=self.username,
+            device_id=device_id,
+            device_uid=device_uid,
+            state=state
+        )
+        _LOGGER.debug(f"下发Zigbee调光灯开关 {device_id} state={state}")
+        await self._send_packet(payload, self.session_key)
+        return True
+
+    async def send_control_zigbee_dimmable_light_brightness(self, device_id: str, device_uid: str, brightness_255: int):
+        """Zigbee调光灯亮度控制（set property 格式，适用于 deviceType=0, subDeviceType=-2）"""
+        await self.connect_and_login()
+        if not self.session_key or self.session_key == DEFAULT_KEY.encode("utf-8"):
+            _LOGGER.debug("会话密钥无效，无法下发")
+            return False
+        payload = HomemateJsonData.ssl_control_zigbee_dimmable_light_brightness(
+            username=self.username,
+            device_id=device_id,
+            device_uid=device_uid,
+            brightness_255=brightness_255
+        )
+        _LOGGER.debug(f"下发Zigbee调光灯亮度 {device_id} brightness={brightness_255}")
+        await self._send_packet(payload, self.session_key)
+        return True
+
+    async def send_control_fast_move_dim_color_light_onoff(self, device_id: str, device_uid: str, state: bool, brightness: int = 0, colortemp_mired: int = 0):
+        """Fast Move调光调色灯开关控制（on/off 格式，适用于 statusType=2, subDeviceType=6）"""
+        await self.connect_and_login()
+        if not self.session_key or self.session_key == DEFAULT_KEY.encode("utf-8"):
+            _LOGGER.debug("会话密钥无效，无法下发")
+            return False
+        payload = HomemateJsonData.ssl_control_fast_move_dim_color_light_onoff(
+            username=self.username,
+            device_id=device_id,
+            device_uid=device_uid,
+            state=state,
+            brightness=brightness,
+            colortemp_mired=colortemp_mired
+        )
+        _LOGGER.debug(f"下发Fast Move调光调色灯开关 {device_id} state={state}")
+        await self._send_packet(payload, self.session_key)
+        return True
+
+    async def send_control_fast_move_dim_color_light_brightness(self, device_id: str, device_uid: str, brightness: int, colortemp_mired: int = 0):
+        """Fast Move调光调色灯亮度控制（fast move to level 格式，适用于 statusType=2, subDeviceType=6）"""
+        await self.connect_and_login()
+        if not self.session_key or self.session_key == DEFAULT_KEY.encode("utf-8"):
+            _LOGGER.debug("会话密钥无效，无法下发")
+            return False
+        payload = HomemateJsonData.ssl_control_fast_move_dim_color_light_brightness(
+            username=self.username,
+            device_id=device_id,
+            device_uid=device_uid,
+            brightness=brightness,
+            colortemp_mired=colortemp_mired
+        )
+        _LOGGER.debug(f"下发Fast Move调光调色灯亮度 {device_id} brightness={brightness}, colortemp={colortemp_mired}")
+        await self._send_packet(payload, self.session_key)
+        return True
+
+    async def send_control_fast_move_dim_color_light_colortemp(self, device_id: str, device_uid: str, brightness: int, colortemp_mired: int):
+        """Fast Move调光调色灯色温控制（fast color temperature 格式，适用于 statusType=2, subDeviceType=6）"""
+        await self.connect_and_login()
+        if not self.session_key or self.session_key == DEFAULT_KEY.encode("utf-8"):
+            _LOGGER.debug("会话密钥无效，无法下发")
+            return False
+        payload = HomemateJsonData.ssl_control_fast_move_dim_color_light_colortemp(
+            username=self.username,
+            device_id=device_id,
+            device_uid=device_uid,
+            brightness=brightness,
+            colortemp_mired=colortemp_mired
+        )
+        _LOGGER.debug(f"下发Fast Move调光调色灯色温 {device_id} brightness={brightness}, colortemp={colortemp_mired}")
+        await self._send_packet(payload, self.session_key)
+        return True
+
     async def send_control_light(self, device_id: str, device_uid: str, state: bool, brightness: int = 0, colortemp_mired: int = 0):
         await self.connect_and_login()
         if not self.session_key or self.session_key == DEFAULT_KEY.encode("utf-8"):
@@ -515,7 +599,8 @@ class SSLClient:
                 await self._disconnect()
                 return
             except Exception as e:
-                _LOGGER.error(f"监听循环异常: {str(e)}")
+                import traceback
+                _LOGGER.error(f"监听循环异常: {str(e)}\n{traceback.format_exc()}")
                 await asyncio.sleep(1)
         await self._reconnect()
 

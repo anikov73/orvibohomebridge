@@ -216,6 +216,159 @@ class HomemateJsonData:
         return payload
 
     @classmethod
+    def ssl_control_zigbee_dimmable_light_onoff(cls, username: str, device_id: str, device_uid: str, state: bool):
+        """Zigbee调光灯开关控制（set property 格式，适用于 deviceType=0, subDeviceType=-2）"""
+        serial = generate_serial()
+        uniSerial = generate_serial(use_time=True)
+        payload = {
+            "uid": device_uid,
+            "userName": username,
+            "deviceId": device_id,
+            "groupId": "",
+            "order": "set property",
+            "value1": 0,
+            "value2": 0,
+            "value3": 0,
+            "value4": 0,
+            "delayTime": 0,
+            "qualityOfService": 1,
+            "defaultResponse": 1,
+            "propertyResponse": 0,
+            "properties": {"onoff": {"status": "on" if state else "off"}},
+            "cmd": CMD_CONTROL,
+            "serial": serial,
+            "clientType": 1,
+            "uniSerial": uniSerial,
+            "serverRecord": False,
+            "ver": SOFTWARE_VER,
+            "debugInfo": DEBUG_INFO,
+        }
+        return payload
+
+    @classmethod
+    def ssl_control_zigbee_dimmable_light_brightness(cls, username: str, device_id: str, device_uid: str, brightness_255: int):
+        """Zigbee调光灯亮度控制（order=on/off 格式，适用于 deviceType=0, subDeviceType=-2）"""
+        serial = generate_serial()
+        uniSerial = generate_serial(use_time=True)
+        bri = max(0, min(int(brightness_255), 255))
+        payload = {
+            "uid": device_uid,
+            "userName": username,
+            "deviceId": device_id,
+            "groupId": "",
+            "order": "on/off",
+            "value1": 0,
+            "value2": bri,
+            "value3": 0,
+            "value4": 0,
+            "delayTime": 0,
+            "qualityOfService": 1,
+            "defaultResponse": 1,
+            "propertyResponse": 0,
+            "properties": {},
+            "cmd": CMD_CONTROL,
+            "serial": serial,
+            "clientType": 1,
+            "uniSerial": uniSerial,
+            "serverRecord": False,
+            "ver": SOFTWARE_VER,
+            "debugInfo": DEBUG_INFO,
+        }
+        return payload
+
+    @classmethod
+    def ssl_control_fast_move_dim_color_light_onoff(cls, username: str, device_id: str, device_uid: str, state: bool, brightness: int = 0, colortemp_mired: int = 0):
+        """Fast Move调光调色灯开关控制（on/off 格式，适用于 statusType=2, subDeviceType=6）"""
+        serial = generate_serial()
+        uniSerial = generate_serial(use_time=True)
+        payload = {
+            "uid": device_uid,
+            "userName": username,
+            "deviceId": device_id,
+            "groupId": "",
+            "order": "on" if state else "off",
+            "value1": 0 if state else 1,
+            "value2": int(brightness),
+            "value3": int(colortemp_mired),
+            "value4": 0,
+            "delayTime": 0,
+            "qualityOfService": 1,
+            "defaultResponse": 1,
+            "propertyResponse": 0,
+            "properties": {},
+            "cmd": CMD_CONTROL,
+            "serial": serial,
+            "clientType": 1,
+            "uniSerial": uniSerial,
+            "serverRecord": False,
+            "ver": SOFTWARE_VER,
+            "debugInfo": DEBUG_INFO,
+        }
+        return payload
+
+    @classmethod
+    def ssl_control_fast_move_dim_color_light_brightness(cls, username: str, device_id: str, device_uid: str, brightness: int, colortemp_mired: int = 0):
+        """Fast Move调光调色灯亮度控制（fast move to level 格式，适用于 statusType=2, subDeviceType=6）"""
+        serial = generate_serial()
+        uniSerial = generate_serial(use_time=True)
+        bri = max(0, min(int(brightness), 255))
+        payload = {
+            "uid": device_uid,
+            "userName": username,
+            "deviceId": device_id,
+            "groupId": "",
+            "order": "fast move to level",
+            "value1": 0,
+            "value2": bri,
+            "value3": int(colortemp_mired),
+            "value4": 0,
+            "delayTime": 0,
+            "qualityOfService": 1,
+            "defaultResponse": 1,
+            "propertyResponse": 0,
+            "properties": {},
+            "cmd": CMD_CONTROL,
+            "serial": serial,
+            "clientType": 1,
+            "uniSerial": uniSerial,
+            "serverRecord": False,
+            "ver": SOFTWARE_VER,
+            "debugInfo": DEBUG_INFO,
+        }
+        return payload
+
+    @classmethod
+    def ssl_control_fast_move_dim_color_light_colortemp(cls, username: str, device_id: str, device_uid: str, brightness: int, colortemp_mired: int):
+        """Fast Move调光调色灯色温控制（fast color temperature 格式，适用于 statusType=2, subDeviceType=6）"""
+        serial = generate_serial()
+        uniSerial = generate_serial(use_time=True)
+        bri = max(0, min(int(brightness), 255))
+        payload = {
+            "uid": device_uid,
+            "userName": username,
+            "deviceId": device_id,
+            "groupId": "",
+            "order": "fast color temperature",
+            "value1": 0,
+            "value2": bri,
+            "value3": int(colortemp_mired),
+            "value4": 0,
+            "delayTime": 0,
+            "qualityOfService": 1,
+            "defaultResponse": 1,
+            "propertyResponse": 0,
+            "properties": {},
+            "cmd": CMD_CONTROL,
+            "serial": serial,
+            "clientType": 1,
+            "uniSerial": uniSerial,
+            "serverRecord": False,
+            "ver": SOFTWARE_VER,
+            "debugInfo": DEBUG_INFO,
+        }
+        return payload
+
+    @classmethod
     def ssl_control_cct_light_onoff(cls, username: str, device_id: str, device_uid: str, state: bool):
         """色温灯开关控制（set property 格式，适用于 statusType=503）"""
         serial = generate_serial()
