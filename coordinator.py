@@ -428,7 +428,8 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
     def _parse_status_fan_coil_ac(self, dev_state: dict, raw_status: dict) -> None:
         """解析风机盘管空调状态 (deviceType 36)
-        value1=0为开/1为关; value2模式(2除湿/3制冷/4制热/7送风); value3风速(1低/2中/3高); value4温度*10000000
+        value1=0为开/1为关; value2模式(2除湿/3制冷/4制热/7送风); value3风速(1低/2中/3高); 
+        value4=32位整数(高16位=目标温度×100, 低16位=当前温度×100)
         """
         value1 = raw_status.get("value1")
         value2 = raw_status.get("value2")
@@ -438,26 +439,33 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         if value1 is not None:
             value1 = int(value1)
             dev_state["state"] = value1 == 0
+            dev_state["value1"] = value1
 
         if value2 is not None:
             value2 = int(value2)
             ac_mode_map = {2: "dehumidify", 3: "cool", 4: "heat", 7: "fan_only"}
             dev_state["ac_mode"] = ac_mode_map.get(value2, f"unknown({value2})")
             dev_state["ac_mode_raw"] = value2
+            dev_state["value2"] = value2
 
         if value3 is not None:
             value3 = int(value3)
             fan_speed_map = {1: "low", 2: "medium", 3: "high"}
             dev_state["fan_speed"] = fan_speed_map.get(value3, f"unknown({value3})")
             dev_state["fan_speed_raw"] = value3
+            dev_state["value3"] = value3
 
         if value4 is not None:
             value4 = int(value4)
+            dev_state["value4"] = value4
             try:
-                temp_celsius = value4 / 10000000.0
-                dev_state["temperature"] = round(temp_celsius, 1)
+                target_temp = (value4 >> 16) // 100
+                current_temp = (value4 & 0xFFFF) // 100
+                dev_state["temperature"] = target_temp
+                dev_state["target_temperature"] = target_temp
+                dev_state["current_temperature"] = current_temp
             except (TypeError, ValueError):
-                dev_state["temperature"] = value4
+                dev_state["temperature"] = 25
 
         _LOGGER.debug(f"[空调] state={dev_state.get('state')}, mode={dev_state.get('ac_mode')}, fan_speed={dev_state.get('fan_speed')}, temperature={dev_state.get('temperature')}")
     
@@ -1205,7 +1213,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 dev_state["fan_speed_raw"] = value3
             if value4 is not None:
                 try:
-                    dev_state["temperature"] = round(value4 / 10000000.0, 1)
+                    dev_state["temperature"] = round(value4 / 10000.0, 1)
                 except (TypeError, ValueError):
                     dev_state["temperature"] = value4
             self.async_set_updated_data(self.device_states)
@@ -1228,7 +1236,15 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         device = self.devices.get(device_id)
         if not device:
             return False
-        value4 = int(temperature * 10000000)
+        
+        dev_state = self.get_device_state(device_id) or {}
+        current_value4 = dev_state.get("value4", 0)
+        indoor_temp = (current_value4 & 0xFFFF) // 100
+        
+        target_temp_scaled = int(temperature * 100)
+        indoor_temp_scaled = int(indoor_temp * 100)
+        value4 = (target_temp_scaled << 16) | indoor_temp_scaled
+        
         return await self._async_ac_control_raw(device_id, device.get("uid", ""), value4=value4)
 
     async def async_set_ac_fan_speed(self, device_id: str, fan_speed: str) -> bool:

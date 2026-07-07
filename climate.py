@@ -3,7 +3,7 @@
 支持设备类别：
 - FAN_COIL_AC (deviceType=36) 风机盘管空调面板
   value1=0为开/1为关; value2模式(2除湿/3制冷/4制热/7送风);
-  value3风速(1低/2中/3高); value4温度*10000000
+  value3风速(1低/2中/3高); value4温度*10000
 """
 import logging
 from typing import Optional
@@ -84,13 +84,12 @@ class OrviboFanCoilAC(CoordinatorEntity, ClimateEntity):
     @property
     def current_temperature(self) -> Optional[float]:
         state = self.coordinator.get_device_state(self._device_id)
-        return state.get("temperature") if state else None
+        return state.get("current_temperature") if state else None
 
     @property
     def target_temperature(self) -> Optional[float]:
-        # 风机盘管无独立目标温度字段，使用当前温度作为目标温度
         state = self.coordinator.get_device_state(self._device_id)
-        return state.get("temperature") if state else None
+        return state.get("target_temperature") if state else None
 
     @property
     def hvac_mode(self) -> HVACMode:
