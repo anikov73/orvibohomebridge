@@ -9,6 +9,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MANUFACTURER, DEVICE_TYPE_LIGHT, DEVICE_TYPE_CLOTHES_HORSE
 from .coordinator import OrviboMeshCoordinator
+from .device_types import classify_device, DeviceCategory
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,19 +45,43 @@ class OrviboLight(CoordinatorEntity, LightEntity):
         class_id = device.get("class_id")
         model = device.get("model", "")
         properties = device.get("properties", {})
-        # type=503 色温灯带亮度范围 0-100，type=502 可调光灯亮度范围 0-100，type=38 调光调色灯亮度范围 0-255
+        
+        # 转换为整数
+        try:
+            device_type_raw = int(device_type_raw) if device_type_raw is not None else None
+            class_id = int(class_id) if class_id is not None else None
+        except (TypeError, ValueError):
+            device_type_raw = None
+            class_id = None
+        
+        sub_device_type = device.get("sub_device_type")
+        status = device.get("status", {})
+        _LOGGER.info(f"灯光设备初始化: name={self._attr_name}, device_type_raw={device_type_raw} (type={type(device_type_raw)}), class_id={class_id} (type={type(class_id)}), sub_device_type={sub_device_type}, status={status}, device={device}")
+        
+        # 通过 sub_device_type=-2 和 status 中的 value2（亮度值）判断为调光灯
+        if device_type_raw is None and sub_device_type == -2 and isinstance(status, dict):
+            if "value2" in status:
+                device_type_raw = 0
+                _LOGGER.info(f"通过 sub_device_type=-2 和 value2 推断 device_type_raw=0")
+        
+        # type=503 色温灯带亮度范围 0-100，type=502 可调光灯亮度范围 0-100，type=38 调光调色灯亮度范围 0-255，type=0 调光灯亮度范围 0-255
         self._brightness_is_percent = (device_type_raw in (502, 503))
 
-        _LOGGER.info(f"灯光设备: {self._attr_name}, device_id={self._device_id}, ui_model={ui_model}, deviceType={device_type_raw}, classId={class_id}, model={model}")
+        _LOGGER.info(f"灯光设备: {self._attr_name}, device_id={self._device_id}, ui_model={ui_model}, deviceType={device_type_raw} (type={type(device_type_raw)}), classId={class_id} (type={type(class_id)}), model={model}")
 
         is_dimmable = False
 
-        # 优先通过 ui.model 判断（最准确）
-        if ui_model in ("light_colortemp", "light_dimmable", "light_color") or "colortemp" in ui_model or "dimmable" in ui_model:
+        # 优先通过 classify_device 判断（最准确）
+        category = classify_device(device)
+        if category in (DeviceCategory.DIM_COLOR_LIGHT, DeviceCategory.DIMMABLE_LIGHT, DeviceCategory.CCT_LIGHT, DeviceCategory.ZIGBEE_DIMMABLE_LIGHT):
+            is_dimmable = True
+            _LOGGER.info(f"通过 classify_device 判断为调光灯: category={category}")
+        # 通过 ui.model 判断
+        elif ui_model in ("light_colortemp", "light_dimmable", "light_color") or "colortemp" in ui_model or "dimmable" in ui_model:
             is_dimmable = True
             _LOGGER.info(f"通过 ui_model 判断为调光灯: {ui_model}")
-        # deviceType=38 调光调色灯，deviceType=502 可调光灯（仅亮度），deviceType=503 色温灯带
-        elif device_type_raw in (38, 502, 503):
+        # deviceType=38 调光调色灯，deviceType=502 可调光灯（仅亮度），deviceType=503 色温灯带，deviceType=0 调光灯（仅亮度）
+        elif device_type_raw in (38, 502, 503, 0):
             is_dimmable = True
             _LOGGER.info(f"通过 deviceType={device_type_raw} 判断为调光灯")
         # 通过 properties 中是否有 brightness 或 colortemp 字段判断
@@ -72,9 +97,10 @@ class OrviboLight(CoordinatorEntity, LightEntity):
             _LOGGER.info(f"通过 classId={class_id} 判断为调光灯")
 
         if is_dimmable:
-            if device_type_raw == 502:
+            if category in (DeviceCategory.DIMMABLE_LIGHT, DeviceCategory.ZIGBEE_DIMMABLE_LIGHT):
                 self._attr_supported_color_modes = {ColorMode.BRIGHTNESS}
                 self._attr_color_mode = ColorMode.BRIGHTNESS
+                _LOGGER.info(f"设置为 BRIGHTNESS 模式: category={category}")
             else:
                 self._attr_supported_color_modes = {ColorMode.COLOR_TEMP}
                 self._attr_color_mode = ColorMode.COLOR_TEMP
@@ -82,9 +108,11 @@ class OrviboLight(CoordinatorEntity, LightEntity):
                 self._max_mireds = 370  # 2700K
                 self._attr_min_color_temp_kelvin = 2700
                 self._attr_max_color_temp_kelvin = 6500
+                _LOGGER.info(f"设置为 COLOR_TEMP 模式: category={category}")
         else:
             self._attr_supported_color_modes = {ColorMode.ONOFF}
             self._attr_color_mode = ColorMode.ONOFF
+            _LOGGER.info(f"设置为 ONOFF 模式")
 
         _LOGGER.info(f"创建灯光实体: {self._attr_name}, supported_modes={self._attr_supported_color_modes}, is_dimmable={is_dimmable}, brightness={device.get('brightness')}, color_temp={device.get('color_temp')}")
 

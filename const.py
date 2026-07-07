@@ -72,6 +72,7 @@ DEVICE_TYPE_MAP = {
     522: DEVICE_TYPE_SENSOR,        # DOOR_LOCK (V5 Eyes)
     10086: DEVICE_TYPE_LIGHT,       # LIGHT_VIRTUAL_GROUP
     502: DEVICE_TYPE_LIGHT,         # DIMMABLE_LIGHT
+    0: DEVICE_TYPE_LIGHT,           # 0-10V调光灯模块 调光模式 (deviceType=0, subDeviceType=-2)
     46: DEVICE_TYPE_SENSOR,         # DOOR_WINDOW_SENSOR
 }
 

@@ -196,6 +196,38 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
         _LOGGER.debug(f"[可调光灯] state={dev_state.get('state')}, brightness={dev_state.get('brightness')}")
 
+    def _parse_status_zigbee_dimmable_light(self, dev_state: dict, raw_status: dict) -> None:
+        """解析0-10v调光灯 (deviceType 0, subDeviceType -2)
+        使用 value1/value2 格式：
+        - value1=0 为开, value1=1 为关（subDeviceType=-2 时反转）
+        - value2 为亮度 (0-255)
+        """
+        value1 = raw_status.get("value1")
+        value2 = raw_status.get("value2")
+
+        if value1 is not None:
+            value1 = int(value1)
+            sub_device_type = raw_status.get("subDeviceType", 0)
+            if isinstance(sub_device_type, str):
+                sub_device_type = int(sub_device_type)
+            if sub_device_type == -2:
+                dev_state["state"] = value1 == 0
+            else:
+                dev_state["state"] = value1 == 1
+
+        if value2 is not None:
+            value2 = int(value2)
+            if value2 < 0:
+                value2 = 0
+            elif value2 > 255:
+                value2 = 255
+            brightness_percent = round(value2 * 100 / 255)
+            dev_state["brightness"] = brightness_percent
+            if brightness_percent == 0:
+                dev_state["state"] = False
+
+        _LOGGER.debug(f"[0-10v调光灯] state={dev_state.get('state')}, brightness={dev_state.get('brightness')}%, raw_value2={value2}")
+
     def _parse_status_temp_humidity_sensor(self, dev_state: dict, raw_status: dict) -> None:
         """解析温湿度传感器状态 (deviceType 300, subType=491)
         使用 properties.temperature.value / properties.humidity.value / properties.battery.power
@@ -872,6 +904,8 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 self._parse_status_light_colortemp(dev_state, raw_status)
             elif device_type == 502:
                 self._parse_status_dimmable_light(dev_state, raw_status)
+            elif device_type == 0 and sub_type == -2:
+                self._parse_status_zigbee_dimmable_light(dev_state, raw_status)
             elif device_type == 503:
                 self._parse_status_cct_light_strip(dev_state, raw_status)
             elif device_type == 300 and sub_type == 491:
@@ -908,6 +942,8 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                     self._parse_status_fan_coil_ac(dev_state, raw_status)
                 elif category == DeviceCategory.DIMMABLE_LIGHT:
                     self._parse_status_dimmable_light(dev_state, raw_status)
+                elif category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
+                    self._parse_status_zigbee_dimmable_light(dev_state, raw_status)
                 elif category == DeviceCategory.TEMP_HUMIDITY_SENSOR:
                     self._parse_status_temp_humidity_sensor(dev_state, raw_status)
                 elif category == DeviceCategory.DOOR_WINDOW_SENSOR:
@@ -986,6 +1022,9 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         elif category in (DeviceCategory.MONO_LIGHT, DeviceCategory.DIMMABLE_LIGHT):
             # type=501/502 使用 set property 格式
             result = await self.ssl_client.send_control_switch(device_id, device_uid, True)
+        elif category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
+            # type=0, subType=-2 使用 order=on/off + value1 格式
+            result = await self.ssl_client.send_control_light(device_id, device_uid, True)
         elif category == DeviceCategory.CCT_LIGHT:
             # statusType=503 使用 set property 格式
             result = await self.ssl_client.send_control_cct_light_onoff(device_id, device_uid, True)
@@ -1033,6 +1072,9 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             result = await self.ssl_client.send_control_light(device_id, device_uid, False)
         elif category in (DeviceCategory.MONO_LIGHT, DeviceCategory.DIMMABLE_LIGHT):
             result = await self.ssl_client.send_control_switch(device_id, device_uid, False)
+        elif category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
+            # type=0, subType=-2 使用 order=on/off + value1 格式
+            result = await self.ssl_client.send_control_light(device_id, device_uid, False)
         elif category == DeviceCategory.CCT_LIGHT:
             # statusType=503 使用 set property 格式
             result = await self.ssl_client.send_control_cct_light_onoff(device_id, device_uid, False)
@@ -1100,6 +1142,19 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             _LOGGER.debug(f"设置可调光灯亮度 {device_id} HA={brightness} → {brightness_percent}%")
             result = await self.ssl_client.send_control_dimmable_light_brightness(device_id, uid, brightness_percent)
             if result:
+                self.device_states.setdefault(device_id, {})["brightness"] = brightness_percent
+                self.device_states[device_id]["state"] = True
+                self.async_set_updated_data(self.device_states)
+            return result
+
+        if category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
+            brightness_255 = min(int(brightness), 255)
+            if brightness_255 == 0:
+                brightness_255 = 1
+            _LOGGER.debug(f"设置Zigbee调光灯亮度 {device_id} HA={brightness} → 0-255={brightness_255}")
+            result = await self.ssl_client.send_control_light(device_id, uid, True, brightness=brightness_255)
+            if result:
+                brightness_percent = round(brightness_255 * 100 / 255)
                 self.device_states.setdefault(device_id, {})["brightness"] = brightness_percent
                 self.device_states[device_id]["state"] = True
                 self.async_set_updated_data(self.device_states)

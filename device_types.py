@@ -37,6 +37,7 @@ class DeviceCategory(Enum):
     SMART_REMOTE = "smart_remote"                      # deviceTypeId=150
     MIXPAD_4WAY_BASE = "mixpad_4way_base"              # deviceTypeId=511
     DIMMABLE_LIGHT = "dimmable_light"                  # deviceTypeId=502，可调光灯（仅亮度，无色温）
+    ZIGBEE_DIMMABLE_LIGHT = "zigbee_dimmable_light"    # deviceTypeId=0, subDeviceType=-2，0-10v调光灯
     CCT_LIGHT = "cct_light"                            # statusType=503 subDeviceType=461，0-10v色温灯
     TEMP_HUMIDITY_SENSOR = "temp_humidity_sensor"      # deviceTypeId=300 subType=491，温湿度传感器
     DOOR_WINDOW_SENSOR = "door_window_sensor"          # deviceTypeId=46，门窗传感器
@@ -201,6 +202,12 @@ _CATEGORY_INFO: Dict[DeviceCategory, CategoryInfo] = {
         description="deviceTypeId=502, subType=431，可调亮度，无色温",
         capabilities=("onoff", "brightness"),
     ),
+    DeviceCategory.ZIGBEE_DIMMABLE_LIGHT: CategoryInfo(
+        category=DeviceCategory.ZIGBEE_DIMMABLE_LIGHT,
+        label="0-10v调光灯",
+        description="deviceTypeId=0, subDeviceType=-2，可调亮度，value1/value2格式",
+        capabilities=("onoff", "brightness"),
+    ),
     DeviceCategory.TEMP_HUMIDITY_SENSOR: CategoryInfo(
         category=DeviceCategory.TEMP_HUMIDITY_SENSOR,
         label="温湿度传感器",
@@ -260,6 +267,7 @@ _DEVICE_TYPE_MAP: Dict[int, DeviceCategory] = {
     150: DeviceCategory.SMART_REMOTE,
     511: DeviceCategory.MIXPAD_4WAY_BASE,
     502: DeviceCategory.DIMMABLE_LIGHT,
+    0: DeviceCategory.ZIGBEE_DIMMABLE_LIGHT,
     46: DeviceCategory.DOOR_WINDOW_SENSOR,
 }
 
@@ -309,9 +317,10 @@ def classify_device(device: Dict[str, Any]) -> DeviceCategory:
 
     优先级：
     1. deviceType 主映射（type=300 需根据 subType 进一步区分）
-    2. ui.model 兜底
-    3. classId / subDeviceType 兜底
-    4. 返回 UNKNOWN
+    2. 特殊组合：deviceType=0, subDeviceType=-2 为 Zigbee调光灯
+    3. ui.model 兜底
+    4. classId / subDeviceType 兜底
+    5. 返回 UNKNOWN
     """
     if not isinstance(device, dict):
         return DeviceCategory.UNKNOWN
@@ -321,6 +330,19 @@ def classify_device(device: Dict[str, Any]) -> DeviceCategory:
 
     if device_type_raw is not None and device_type_raw in _DEVICE_TYPE_MAP:
         return _DEVICE_TYPE_MAP[device_type_raw]
+
+    # 特殊判断：device_type_raw=0 或 device_type_raw=None 但 sub_device_type=-2 且有亮度数据
+    if sub_type == -2:
+        status_type = _safe_int(device.get("status_type") or device.get("statusType"))
+        if status_type == 0:
+            return DeviceCategory.ZIGBEE_DIMMABLE_LIGHT
+        status = device.get("status", {})
+        if isinstance(status, dict) and "value2" in status:
+            return DeviceCategory.ZIGBEE_DIMMABLE_LIGHT
+        # 如果名称包含"调光"也识别为调光灯
+        device_name = device.get("device_name", "") or device.get("deviceName", "")
+        if "调光" in device_name:
+            return DeviceCategory.ZIGBEE_DIMMABLE_LIGHT
 
     ui_model = device.get("ui_model") or device.get("ui", {}).get("model") if isinstance(device.get("ui"), dict) else device.get("ui_model")
     if isinstance(ui_model, str) and ui_model in _UI_MODEL_MAP:

@@ -478,6 +478,14 @@ class HttpsClient:
                         if isinstance(descriptor, dict):
                             class_id = descriptor.get("classId")
                 
+                # 转换为整数
+                try:
+                    device_type_raw = int(device_type_raw) if device_type_raw is not None else None
+                    class_id = int(class_id) if class_id is not None else None
+                except (TypeError, ValueError):
+                    device_type_raw = None
+                    class_id = None
+                
                 _LOGGER.info(f"设备 {device_id}: deviceType={device_type_raw}, classId={class_id}, status_deviceType={status_data.get('deviceType')}")
                 
                 # 跳过 deviceType=135/136 的父开关设备（物理容器，properties为空，不可控）
@@ -504,6 +512,15 @@ class HttpsClient:
                     if any(keyword in device_name for keyword in ["灯", "light", "吸顶灯", "平板灯", "主灯", "射灯", "筒灯", "灯泡", "led", "LED"]):
                         device_type = DEVICE_TYPE_LIGHT
                         _LOGGER.info(f"通过名称推断为灯: {device_name}")
+                        # 如果是调光灯且 subDeviceType=-2，设置 device_type_raw=0
+                        sub_type_raw = item.get("subDeviceType") or status_data.get("subDeviceType")
+                        try:
+                            sub_type_raw = int(sub_type_raw) if sub_type_raw is not None else None
+                        except (TypeError, ValueError):
+                            sub_type_raw = None
+                        if "调光" in device_name and sub_type_raw == -2:
+                            device_type_raw = 0
+                            _LOGGER.info(f"通过名称'调光灯'和 subDeviceType=-2 设置 device_type_raw=0")
                     elif any(keyword in device_name for keyword in ["窗帘", "窗帘机", "遮阳帘", "百叶窗", "卷帘", "curtain", "blind", "shade"]):
                         device_type = DEVICE_TYPE_COVER
                         _LOGGER.info(f"通过名称推断为窗帘: {device_name}")
@@ -611,6 +628,18 @@ class HttpsClient:
                         if 150 <= ct <= 400:
                             ct = 1000000 // ct
                         initial_color_temp = ct
+                elif device_type_raw == 0:
+                    # deviceType=0, subDeviceType=-2: Zigbee调光灯
+                    # value1=0 为开, value1=1 为关（subDeviceType=-2 时反转）
+                    # value2 为亮度 (0-255)
+                    if value1 is not None:
+                        v1 = int(value1)
+                        if sub_type_raw == -2:
+                            initial_state = v1 == 0
+                        else:
+                            initial_state = v1 == 1
+                    if value2 is not None:
+                        initial_brightness = int(value2)
 
                 # 兜底：从 properties 取（SSL 推送或其他接口可能返回 properties 格式）
                 onoff_value = None
@@ -705,6 +734,16 @@ class HttpsClient:
                 if isinstance(item, str):
                     continue
 
+                # 转换 deviceType 和 classId 为整数
+                device_type_raw = item.get("deviceType")
+                class_id = item.get("classId")
+                try:
+                    device_type_raw = int(device_type_raw) if device_type_raw is not None else None
+                    class_id = int(class_id) if class_id is not None else None
+                except (TypeError, ValueError):
+                    device_type_raw = None
+                    class_id = None
+
                 device_type = self._get_device_type(item)
                 if device_type is None:
                     continue
@@ -713,8 +752,8 @@ class HttpsClient:
                     "device_id": device_id,
                     "device_name": item.get("deviceName", ""),
                     "device_type": device_type,
-                    "device_type_raw": item.get("deviceType"),
-                    "class_id": item.get("classId"),
+                    "device_type_raw": device_type_raw,
+                    "class_id": class_id,
                     "uid": item.get("uid", ""),
                     "model": item.get("model", ""),
                     "room_id": item.get("roomId", ""),
@@ -787,6 +826,13 @@ class HttpsClient:
     def _get_device_type(self, item: dict) -> Optional[str]:
         device_type_raw = item.get("deviceType")
         class_id = item.get("classId")
+
+        try:
+            device_type_raw = int(device_type_raw) if device_type_raw is not None else None
+            class_id = int(class_id) if class_id is not None else None
+        except (TypeError, ValueError):
+            device_type_raw = None
+            class_id = None
 
         if class_id in CLASS_ID_MAP:
             return CLASS_ID_MAP[class_id]
