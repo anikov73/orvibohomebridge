@@ -216,6 +216,98 @@ class HomemateJsonData:
         return payload
 
     @classmethod
+    def ssl_control_cct_light_onoff(cls, username: str, device_id: str, device_uid: str, state: bool):
+        """色温灯开关控制（set property 格式，适用于 statusType=503）"""
+        serial = generate_serial()
+        uniSerial = generate_serial(use_time=True)
+        payload = {
+            "uid": device_uid,
+            "userName": username,
+            "deviceId": device_id,
+            "groupId": "",
+            "order": "set property",
+            "value1": 0,
+            "value2": 0,
+            "value3": 0,
+            "value4": 0,
+            "delayTime": 0,
+            "qualityOfService": 1,
+            "defaultResponse": 1,
+            "propertyResponse": 0,
+            "properties": {"onoff": {"status": "on" if state else "off"}},
+            "cmd": CMD_CONTROL,
+            "serial": serial,
+            "clientType": 1,
+            "uniSerial": uniSerial,
+            "serverRecord": False,
+            "ver": SOFTWARE_VER,
+            "debugInfo": DEBUG_INFO,
+        }
+        return payload
+
+    @classmethod
+    def ssl_control_cct_light_brightness(cls, username: str, device_id: str, device_uid: str, brightness_percent: int):
+        """色温灯亮度控制（set property 格式，适用于 statusType=503）"""
+        serial = generate_serial()
+        uniSerial = generate_serial(use_time=True)
+        bri = max(0, min(int(brightness_percent), 100))
+        payload = {
+            "uid": device_uid,
+            "userName": username,
+            "deviceId": device_id,
+            "groupId": "",
+            "order": "set property",
+            "value1": 0,
+            "value2": 0,
+            "value3": 0,
+            "value4": 0,
+            "delayTime": 0,
+            "qualityOfService": 1,
+            "defaultResponse": 1,
+            "propertyResponse": 0,
+            "properties": {"brightness": {"percent": bri}},
+            "cmd": CMD_CONTROL,
+            "serial": serial,
+            "clientType": 1,
+            "uniSerial": uniSerial,
+            "serverRecord": False,
+            "ver": SOFTWARE_VER,
+            "debugInfo": DEBUG_INFO,
+        }
+        return payload
+
+    @classmethod
+    def ssl_control_cct_light_colortemp(cls, username: str, device_id: str, device_uid: str, colortemp_k: int):
+        """色温灯色温控制（set property 格式，适用于 statusType=503）"""
+        serial = generate_serial()
+        uniSerial = generate_serial(use_time=True)
+        ct = max(2700, min(int(colortemp_k), 6500))
+        payload = {
+            "uid": device_uid,
+            "userName": username,
+            "deviceId": device_id,
+            "groupId": "",
+            "order": "set property",
+            "value1": 0,
+            "value2": 0,
+            "value3": 0,
+            "value4": 0,
+            "delayTime": 0,
+            "qualityOfService": 1,
+            "defaultResponse": 1,
+            "propertyResponse": 0,
+            "properties": {"colorTemp": {"value": ct}},
+            "cmd": CMD_CONTROL,
+            "serial": serial,
+            "clientType": 1,
+            "uniSerial": uniSerial,
+            "serverRecord": False,
+            "ver": SOFTWARE_VER,
+            "debugInfo": DEBUG_INFO,
+        }
+        return payload
+
+    @classmethod
     def ssl_control_light(cls, username: str, device_id: str, device_uid: str, state: bool, brightness: int = 0, colortemp_mired: int = 0):
         """灯光开关控制（order=on/off + value1 格式，适用于 type=102/38 等）。"""
         serial = generate_serial()

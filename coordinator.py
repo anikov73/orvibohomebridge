@@ -902,7 +902,7 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                     self._parse_status_light(dev_state, raw_status)
                 elif category == DeviceCategory.ZIGBEE_CURTAIN:
                     self._parse_status_curtain(dev_state, raw_status)
-                elif category == DeviceCategory.CCT_LIGHT_STRIP:
+                elif category in (DeviceCategory.CCT_LIGHT_STRIP, DeviceCategory.CCT_LIGHT):
                     self._parse_status_cct_light_strip(dev_state, raw_status)
                 elif category == DeviceCategory.FAN_COIL_AC:
                     self._parse_status_fan_coil_ac(dev_state, raw_status)
@@ -986,6 +986,9 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         elif category in (DeviceCategory.MONO_LIGHT, DeviceCategory.DIMMABLE_LIGHT):
             # type=501/502 使用 set property 格式
             result = await self.ssl_client.send_control_switch(device_id, device_uid, True)
+        elif category == DeviceCategory.CCT_LIGHT:
+            # statusType=503 使用 set property 格式
+            result = await self.ssl_client.send_control_cct_light_onoff(device_id, device_uid, True)
         elif category in (DeviceCategory.SIMPLE_ZIGBEE_LIGHT, DeviceCategory.LEGACY_LIGHT,
                           DeviceCategory.CCT_LIGHT_STRIP, DeviceCategory.LIGHT_VIRTUAL_GROUP):
             # type=1/102/503/10086 使用 order=on/off + value1
@@ -1030,6 +1033,9 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             result = await self.ssl_client.send_control_light(device_id, device_uid, False)
         elif category in (DeviceCategory.MONO_LIGHT, DeviceCategory.DIMMABLE_LIGHT):
             result = await self.ssl_client.send_control_switch(device_id, device_uid, False)
+        elif category == DeviceCategory.CCT_LIGHT:
+            # statusType=503 使用 set property 格式
+            result = await self.ssl_client.send_control_cct_light_onoff(device_id, device_uid, False)
         elif category in (DeviceCategory.SIMPLE_ZIGBEE_LIGHT, DeviceCategory.LEGACY_LIGHT,
                           DeviceCategory.CCT_LIGHT_STRIP, DeviceCategory.LIGHT_VIRTUAL_GROUP):
             result = await self.ssl_client.send_control_light(device_id, device_uid, False)
@@ -1103,14 +1109,19 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         if color_temp_k == 0:
             color_temp_k = 2700
 
-        device_type_raw = device.get("device_type_raw")
-        if device_type_raw in (503,):
-            brightness_255 = round(brightness * 255 / 100)
-            _LOGGER.debug(f"下发色温灯带亮度 {device_id} 百分比={brightness} → 0-255={brightness_255}, color_temp={color_temp_k}K")
-            result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness_255)
+        category = classify_device(device)
+        if category == DeviceCategory.CCT_LIGHT:
+            _LOGGER.debug(f"下发色温灯亮度 {device_id} {brightness}%")
+            result = await self.ssl_client.send_control_cct_light_brightness(device_id, uid, brightness)
         else:
-            _LOGGER.debug(f"下发亮度 {device_id} bri={brightness} color_temp={color_temp_k}K (fast color temperature)")
-            result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness)
+            device_type_raw = device.get("device_type_raw")
+            if device_type_raw in (503,):
+                brightness_255 = round(brightness * 255 / 100)
+                _LOGGER.debug(f"下发色温灯带亮度 {device_id} 百分比={brightness} → 0-255={brightness_255}, color_temp={color_temp_k}K")
+                result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness_255)
+            else:
+                _LOGGER.debug(f"下发亮度 {device_id} bri={brightness} color_temp={color_temp_k}K (fast color temperature)")
+                result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness)
         if result:
             self.device_states.setdefault(device_id, {})["brightness"] = brightness
             self.device_states[device_id]["state"] = True
@@ -1129,14 +1140,19 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         uid = device.get("uid", "")
         brightness = self.device_states.get(device_id, {}).get("brightness", 255)
 
-        device_type_raw = device.get("device_type_raw")
-        if device_type_raw in (503,):
-            brightness_255 = round(brightness * 255 / 100)
-            _LOGGER.debug(f"设置色温 {color_temp_k}K, brightness(百分比)={brightness} → 0-255={brightness_255}")
-            result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness_255)
+        category = classify_device(device)
+        if category == DeviceCategory.CCT_LIGHT:
+            _LOGGER.debug(f"下发色温灯色温 {device_id} {color_temp_k}K")
+            result = await self.ssl_client.send_control_cct_light_colortemp(device_id, uid, color_temp_k)
         else:
-            _LOGGER.debug(f"设置色温 {color_temp_k}K, brightness={brightness}")
-            result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness)
+            device_type_raw = device.get("device_type_raw")
+            if device_type_raw in (503,):
+                brightness_255 = round(brightness * 255 / 100)
+                _LOGGER.debug(f"设置色温 {color_temp_k}K, brightness(百分比)={brightness} → 0-255={brightness_255}")
+                result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness_255)
+            else:
+                _LOGGER.debug(f"设置色温 {color_temp_k}K, brightness={brightness}")
+                result = await self.ssl_client.send_control_light_colortemp(device_id, uid, color_temp_k, brightness=brightness)
         if result:
             self.device_states.setdefault(device_id, {})["color_temp"] = color_temp_k
             self.async_set_updated_data(self.device_states)

@@ -265,6 +265,54 @@ class SSLClient:
         await self._send_packet(payload, self.session_key)
         return True
 
+    async def send_control_cct_light_onoff(self, device_id: str, device_uid: str, state: bool):
+        """色温灯开关控制（set property 格式，适用于 statusType=503）"""
+        await self.connect_and_login()
+        if not self.session_key or self.session_key == DEFAULT_KEY.encode("utf-8"):
+            _LOGGER.debug("会话密钥无效，无法下发")
+            return False
+        payload = HomemateJsonData.ssl_control_cct_light_onoff(
+            username=self.username,
+            device_id=device_id,
+            device_uid=device_uid,
+            state=state
+        )
+        _LOGGER.debug(f"下发色温灯开关 {device_id} state={state}")
+        await self._send_packet(payload, self.session_key)
+        return True
+
+    async def send_control_cct_light_brightness(self, device_id: str, device_uid: str, brightness_percent: int):
+        """色温灯亮度控制（set property 格式，适用于 statusType=503）"""
+        await self.connect_and_login()
+        if not self.session_key or self.session_key == DEFAULT_KEY.encode("utf-8"):
+            _LOGGER.debug("会话密钥无效，无法下发")
+            return False
+        payload = HomemateJsonData.ssl_control_cct_light_brightness(
+            username=self.username,
+            device_id=device_id,
+            device_uid=device_uid,
+            brightness_percent=brightness_percent
+        )
+        _LOGGER.debug(f"下发色温灯亮度 {device_id} {brightness_percent}%")
+        await self._send_packet(payload, self.session_key)
+        return True
+
+    async def send_control_cct_light_colortemp(self, device_id: str, device_uid: str, colortemp_k: int):
+        """色温灯色温控制（set property 格式，适用于 statusType=503）"""
+        await self.connect_and_login()
+        if not self.session_key or self.session_key == DEFAULT_KEY.encode("utf-8"):
+            _LOGGER.debug("会话密钥无效，无法下发")
+            return False
+        payload = HomemateJsonData.ssl_control_cct_light_colortemp(
+            username=self.username,
+            device_id=device_id,
+            device_uid=device_uid,
+            colortemp_k=colortemp_k
+        )
+        _LOGGER.debug(f"下发色温灯色温 {device_id} {colortemp_k}K")
+        await self._send_packet(payload, self.session_key)
+        return True
+
     async def send_control_dimmable_light_brightness(self, device_id: str, device_uid: str, brightness_percent: int):
         """可调光灯亮度控制（set property 格式，type=502）。"""
         await self.connect_and_login()

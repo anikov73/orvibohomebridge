@@ -37,6 +37,7 @@ class DeviceCategory(Enum):
     SMART_REMOTE = "smart_remote"                      # deviceTypeId=150
     MIXPAD_4WAY_BASE = "mixpad_4way_base"              # deviceTypeId=511
     DIMMABLE_LIGHT = "dimmable_light"                  # deviceTypeId=502，可调光灯（仅亮度，无色温）
+    CCT_LIGHT = "cct_light"                            # statusType=503 subDeviceType=461，0-10v色温灯
     TEMP_HUMIDITY_SENSOR = "temp_humidity_sensor"      # deviceTypeId=300 subType=491，温湿度传感器
     DOOR_WINDOW_SENSOR = "door_window_sensor"          # deviceTypeId=46，门窗传感器
     OTHER = "other"
@@ -243,7 +244,7 @@ _DEVICE_TYPE_MAP: Dict[int, DeviceCategory] = {
     137: DeviceCategory.MIX_SWITCH,
     143: DeviceCategory.MIX_SWITCH,
     501: DeviceCategory.MONO_LIGHT,
-    503: DeviceCategory.CCT_LIGHT_STRIP,
+    503: DeviceCategory.CCT_LIGHT,
     518: DeviceCategory.BACH_SWITCH,
     522: DeviceCategory.DOOR_LOCK,
     14: DeviceCategory.WIFI_CAMERA,
