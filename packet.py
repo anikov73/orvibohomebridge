@@ -216,25 +216,25 @@ class HomemateJsonData:
         return payload
 
     @classmethod
-    def ssl_control_zigbee_dimmable_light_onoff(cls, username: str, device_id: str, device_uid: str, state: bool):
-        """Zigbee调光灯开关控制（set property 格式，适用于 deviceType=0, subDeviceType=-2）"""
+    def ssl_control_zigbee_dimmable_light_onoff(cls, username: str, device_id: str, device_uid: str, state: bool, brightness: int = 255):
+        """Zigbee调光灯开关控制（on/off 格式，适用于 deviceType=0, subDeviceType=-2）"""
         serial = generate_serial()
         uniSerial = generate_serial(use_time=True)
+        bri = max(0, min(int(brightness), 255))
         payload = {
             "uid": device_uid,
             "userName": username,
             "deviceId": device_id,
             "groupId": "",
-            "order": "set property",
-            "value1": 0,
-            "value2": 0,
+            "order": "on" if state else "off",
+            "value1": 0 if state else 1,
+            "value2": bri,
             "value3": 0,
             "value4": 0,
             "delayTime": 0,
             "qualityOfService": 1,
             "defaultResponse": 1,
             "propertyResponse": 0,
-            "properties": {"onoff": {"status": "on" if state else "off"}},
             "cmd": CMD_CONTROL,
             "serial": serial,
             "clientType": 1,
@@ -247,16 +247,16 @@ class HomemateJsonData:
 
     @classmethod
     def ssl_control_zigbee_dimmable_light_brightness(cls, username: str, device_id: str, device_uid: str, brightness_255: int):
-        """Zigbee调光灯亮度控制（order=on/off 格式，适用于 deviceType=0, subDeviceType=-2）"""
+        """Zigbee调光灯亮度控制（move to level 格式，适用于 deviceType=0, subDeviceType=-2）"""
         serial = generate_serial()
         uniSerial = generate_serial(use_time=True)
-        bri = max(0, min(int(brightness_255), 255))
+        bri = max(1, min(int(brightness_255), 255))
         payload = {
             "uid": device_uid,
             "userName": username,
             "deviceId": device_id,
             "groupId": "",
-            "order": "on/off",
+            "order": "move to level",
             "value1": 0,
             "value2": bri,
             "value3": 0,
@@ -265,7 +265,6 @@ class HomemateJsonData:
             "qualityOfService": 1,
             "defaultResponse": 1,
             "propertyResponse": 0,
-            "properties": {},
             "cmd": CMD_CONTROL,
             "serial": serial,
             "clientType": 1,

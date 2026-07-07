@@ -1064,8 +1064,12 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             # type=501/502 使用 set property 格式
             result = await self.ssl_client.send_control_switch(device_id, device_uid, True)
         elif category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
-            # type=0, subType=-2 使用 set property 格式
-            result = await self.ssl_client.send_control_zigbee_dimmable_light_onoff(device_id, device_uid, True)
+            dev_state = self.get_device_state(device_id) or {}
+            cur_bri = brightness if brightness is not None else dev_state.get("brightness", 0) or 0
+            if cur_bri == 0:
+                cur_bri = 255
+            _LOGGER.debug(f"[ZIGBEE_DIMMABLE_LIGHT] 开灯: bri={cur_bri}/255")
+            result = await self.ssl_client.send_control_zigbee_dimmable_light_onoff(device_id, device_uid, True, brightness=cur_bri)
         elif category == DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT:
             dev_state = self.get_device_state(device_id) or {}
             cur_bri = brightness if brightness is not None else dev_state.get("brightness", 0) or 0
@@ -1125,8 +1129,10 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         elif category in (DeviceCategory.MONO_LIGHT, DeviceCategory.DIMMABLE_LIGHT):
             result = await self.ssl_client.send_control_switch(device_id, device_uid, False)
         elif category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
-            # type=0, subType=-2 使用 set property 格式
-            result = await self.ssl_client.send_control_zigbee_dimmable_light_onoff(device_id, device_uid, False)
+            dev_state = self.get_device_state(device_id) or {}
+            cur_bri = dev_state.get("brightness", 0) or 0
+            _LOGGER.debug(f"[ZIGBEE_DIMMABLE_LIGHT] 关灯: bri={cur_bri}/255 (记忆)")
+            result = await self.ssl_client.send_control_zigbee_dimmable_light_onoff(device_id, device_uid, False, brightness=cur_bri)
         elif category == DeviceCategory.FAST_MOVE_DIM_COLOR_LIGHT:
             dev_state = self.get_device_state(device_id) or {}
             cur_bri = dev_state.get("brightness", 0) or 0
@@ -1207,14 +1213,11 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             return result
 
         if category == DeviceCategory.ZIGBEE_DIMMABLE_LIGHT:
-            brightness_percent = min(int(brightness), 100)
-            if brightness_percent == 0:
-                brightness_percent = 1
-            brightness_255 = round(brightness_percent * 255 / 100)
-            _LOGGER.debug(f"设置Zigbee调光灯亮度 {device_id} HA百分比={brightness} → 0-255={brightness_255}")
+            brightness_255 = max(1, min(int(brightness), 255))
+            _LOGGER.debug(f"[ZIGBEE_DIMMABLE_LIGHT] 设置亮度 {device_id} HA_0-255={brightness} → 设备值={brightness_255}/255")
             result = await self.ssl_client.send_control_zigbee_dimmable_light_brightness(device_id, uid, brightness_255)
             if result:
-                self.device_states.setdefault(device_id, {})["brightness"] = brightness_percent
+                self.device_states.setdefault(device_id, {})["brightness"] = brightness_255
                 self.device_states[device_id]["state"] = True
                 self.async_set_updated_data(self.device_states)
             return result

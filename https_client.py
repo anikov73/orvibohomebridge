@@ -692,9 +692,16 @@ class HttpsClient:
                         brightness_val = status_properties["brightness"]
                     if brightness_val is not None:
                         if isinstance(brightness_val, dict):
-                            initial_brightness = brightness_val.get("brightness", brightness_val.get("value"))
+                            bri = brightness_val.get("brightness", brightness_val.get("value"))
                         else:
-                            initial_brightness = int(brightness_val) if isinstance(brightness_val, (int, float)) else None
+                            bri = int(brightness_val) if isinstance(brightness_val, (int, float)) else None
+                        if bri is not None:
+                            # deviceType=0 (ZIGBEE_DIMMABLE_LIGHT, subDeviceType=-2)
+                            # 的 properties.brightness 是百分比(0-100)，需要转成 0-255
+                            if device_type_raw == 0:
+                                initial_brightness = round(bri * 255 / 100)
+                            else:
+                                initial_brightness = bri
 
                 if initial_color_temp is None:
                     colortemp_val = None
