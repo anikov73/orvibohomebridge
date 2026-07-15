@@ -815,8 +815,11 @@ class HomemateJsonData:
         return {"url": url, "data": postData_str}
 
     @classmethod
-    def get_devices_status(cls, access_token, session_id, user_id, user_name, family_id):
-        """获取设备状态列表，通过 /v2/cmd/app/readtable API"""
+    def get_devices_status(cls, access_token, session_id, user_id, user_name, family_id, device_flag=0):
+        """获取设备状态列表，通过 /v2/cmd/app/readtable API
+        device_flag=0 时服务器可能只返回账户级表(account/gateway)，
+        device_flag=1 用于请求设备级表(device/deviceStatus)
+        """
         url = f"https://{HTTPS_HOST}/v2/cmd/app/readtable"
 
         random_str = generate_uuid()
@@ -837,7 +840,7 @@ class HomemateJsonData:
             "sign": "1234567890",
             "timestamp": timestamp,
             "sessionId": session_id,
-            "deviceFlag": 0,
+            "deviceFlag": device_flag,
             "familyId": family_id,
             "pageIndex": 0,
             "dataType": "all"

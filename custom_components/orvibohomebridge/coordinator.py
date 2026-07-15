@@ -776,6 +776,18 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
 
             devices = self.https_client.parse_device_status_list(device_status_data)
             if not devices:
+                # readtable 未返回设备表时，回退到 getDeviceDesc API 构建设备列表
+                # （getDeviceDesc 返回的设备条目字段与 readtable device 表兼容）
+                _LOGGER.warning("readtable 未解析到设备，回退到 getDeviceDesc 构建设备列表...")
+                desc_data = await self.https_client.fetch_device_desc(last_update_time=0)
+                if desc_data:
+                    desc_devices = desc_data.get("deviceDescList", desc_data.get("devices", []))
+                    if isinstance(desc_devices, list) and desc_devices:
+                        devices = self.https_client.parse_device_status_list(
+                            {"device": desc_devices, "deviceStatus": {}}
+                        )
+                        _LOGGER.info(f"getDeviceDesc 回退解析到 {len(devices)} 个设备")
+            if not devices:
                 raise UpdateFailed("未解析到任何设备")
 
             for device in devices:

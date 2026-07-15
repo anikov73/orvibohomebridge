@@ -182,56 +182,75 @@ class HttpsClient:
                 break
         _LOGGER.info(f"切换到家庭: {self.family_name} ({self.family_id})")
 
+    async def _readtable(self, device_flag: int) -> Optional[Dict[str, Any]]:
+        """发送一次 readtable 请求并返回合并后的数据字典"""
+        ret = HomemateJsonData.get_devices_status(
+            access_token=self.access_token,
+            session_id=self.session_id or "",
+            user_id=self.user_id,
+            user_name=self.username,
+            family_id=self.family_id,
+            device_flag=device_flag
+        )
+        resp = await self._send_request(ret['url'], ret['data'])
+
+        if "message" in resp:
+            _LOGGER.error(f"readtable(deviceFlag={device_flag}) 失败: {resp['message']}")
+            return None
+        if "data" not in resp:
+            _LOGGER.error(f"readtable(deviceFlag={device_flag}) 响应包中未找到[data]")
+            return None
+
+        data = resp["data"]
+        # data 可能是列表：服务器按表分块返回，必须合并全部块
+        if isinstance(data, list):
+            _LOGGER.info(f"readtable(deviceFlag={device_flag}) 返回 {len(data)} 个数据块，keys: "
+                         f"{[list(e.keys()) if isinstance(e, dict) else type(e).__name__ for e in data]}")
+            merged: Dict[str, Any] = {}
+            for element in data:
+                if not isinstance(element, dict):
+                    continue
+                for key, value in element.items():
+                    if key not in merged:
+                        merged[key] = value
+                    elif isinstance(merged[key], list) and isinstance(value, list):
+                        merged[key] = merged[key] + value
+                    elif isinstance(merged[key], dict) and isinstance(value, dict):
+                        merged[key] = {**merged[key], **value}
+            data = merged
+
+        _LOGGER.info(f"readtable(deviceFlag={device_flag}) 数据keys: "
+                     f"{list(data.keys()) if isinstance(data, dict) else 'not a dict'}, "
+                     f"tableNameList={data.get('tableNameList') if isinstance(data, dict) else None}, "
+                     f"queryDataFlag={data.get('queryDataFlag') if isinstance(data, dict) else None}")
+        return data if isinstance(data, dict) else None
+
     async def fetch_device_status(self) -> Optional[Dict[str, Any]]:
-        """通过 /v2/cmd/app/readtable API 获取设备状态列表"""
+        """通过 /v2/cmd/app/readtable API 获取设备状态列表
+
+        deviceFlag=0 可能只返回账户级表(account/userGatewayBind/gateway)，
+        此时用 deviceFlag=1 再次请求设备级表(device/deviceStatus)并合并。
+        """
         try:
             if not await self.ensure_login():
                 _LOGGER.error("HTTPS 未登录")
                 return None
 
-            ret = HomemateJsonData.get_devices_status(
-                access_token=self.access_token,
-                session_id=self.session_id or "",
-                user_id=self.user_id,
-                user_name=self.username,
-                family_id=self.family_id
-            )
-            resp = await self._send_request(ret['url'], ret['data'])
-
-            if "message" in resp:
-                _LOGGER.error(resp["message"])
-                return None
-            if "data" not in resp:
-                _LOGGER.error("响应包中未找到[data]")
+            data = await self._readtable(device_flag=0)
+            if data is None:
                 return None
 
-            # 解析设备状态数据
-            data = resp["data"]
-            # data 可能是列表：服务器按表分块返回（第一块是 account/gateway 等元数据表，
-            # device/deviceStatus 表在后续块中），必须合并全部块，只取第一块会丢失设备表
-            if isinstance(data, list):
-                _LOGGER.info(f"readtable 返回 {len(data)} 个数据块，keys: "
-                             f"{[list(e.keys()) if isinstance(e, dict) else type(e).__name__ for e in data]}")
-                merged: Dict[str, Any] = {}
-                for element in data:
-                    if not isinstance(element, dict):
-                        continue
-                    for key, value in element.items():
-                        if key not in merged:
-                            merged[key] = value
-                        elif isinstance(merged[key], list) and isinstance(value, list):
-                            merged[key] = merged[key] + value
-                        elif isinstance(merged[key], dict) and isinstance(value, dict):
-                            merged[key] = {**merged[key], **value}
-                data = merged
+            if "device" not in data:
+                _LOGGER.warning("readtable(deviceFlag=0) 未返回 device 表，尝试 deviceFlag=1 ...")
+                data_flag1 = await self._readtable(device_flag=1)
+                if data_flag1:
+                    # deviceFlag=1 的结果优先，账户级表保留
+                    data = {**data, **data_flag1}
 
-            _LOGGER.info(f"获取到原始设备数据，keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}")
-
-            # 设备表缺失时输出诊断信息（tableNameList/queryDataFlag 提示服务器分块或分页策略）
-            if isinstance(data, dict) and "device" not in data:
+            if "device" not in data:
                 _LOGGER.warning(
-                    f"readtable 响应中缺少 device 表: tableNameList={data.get('tableNameList')}, "
-                    f"queryDataFlag={data.get('queryDataFlag')}, requestTime={data.get('requestTime')}"
+                    f"readtable 响应中始终缺少 device 表: gateway表={data.get('gateway')}, "
+                    f"userGatewayBind表={data.get('userGatewayBind')}"
                 )
             return data
         except Exception as e:
