@@ -290,11 +290,16 @@ class HttpsClient:
                 _LOGGER.info(f"getDeviceDesc API 返回数据类型: {type(data)}")
                 if isinstance(data, dict):
                     _LOGGER.info(f"getDeviceDesc 返回键: {list(data.keys())}")
-                    if "devices" in data:
-                        devices = data.get("devices", [])
-                        _LOGGER.info(f"设备数量: {len(devices)}")
-                        if len(devices) > 0 and isinstance(devices[0], dict):
-                            _LOGGER.info(f"第一个设备键: {list(devices[0].keys())[:15]}")
+                    if data.get("errorCode") not in (None, 0, "0", ""):
+                        _LOGGER.warning(f"getDeviceDesc errorCode={data.get('errorCode')}, errorMessage={data.get('errorMessage')}")
+                    desc_list = data.get("deviceDescList", data.get("devices", []))
+                    if isinstance(desc_list, list):
+                        _LOGGER.info(f"getDeviceDesc 设备数量: {len(desc_list)}")
+                        if len(desc_list) > 0 and isinstance(desc_list[0], dict):
+                            _LOGGER.info(f"第一个设备键: {list(desc_list[0].keys())[:20]}")
+                            _LOGGER.info(f"第一个设备内容(截断): {str(desc_list[0])[:1000]}")
+                    else:
+                        _LOGGER.warning(f"getDeviceDesc deviceDescList 类型异常: {type(desc_list)}")
                     if "status" in data:
                         _LOGGER.info(f"status: {data.get('status')}")
                 

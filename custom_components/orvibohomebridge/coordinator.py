@@ -787,6 +787,28 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                             {"device": desc_devices, "deviceStatus": {}}
                         )
                         _LOGGER.info(f"getDeviceDesc 回退解析到 {len(devices)} 个设备")
+                    else:
+                        _LOGGER.warning(f"getDeviceDesc deviceDescList 为空 (类型={type(desc_devices).__name__})")
+
+            if not devices:
+                # 第三层回退：queryHomepageData 家庭主页 API（WiFi直连设备如门锁
+                # 可能不在网关设备表中，只出现在家庭设备列表里）
+                _LOGGER.warning("getDeviceDesc 未构建到设备，回退到 queryHomepageData...")
+                homepage_data = await self.https_client.fetch_homepage_data()
+                if isinstance(homepage_data, dict):
+                    _LOGGER.info(f"queryHomepageData 返回键: {list(homepage_data.keys())}")
+                    homepage_devices = homepage_data.get("deviceList", homepage_data.get("device", [])) or []
+                    if isinstance(homepage_devices, list) and homepage_devices:
+                        _LOGGER.info(f"queryHomepageData 设备数量: {len(homepage_devices)}, "
+                                     f"第一个设备内容(截断): {str(homepage_devices[0])[:1000]}")
+                        devices = self.https_client.parse_device_status_list(
+                            {"device": homepage_devices, "deviceStatus": {}}
+                        )
+                        _LOGGER.info(f"queryHomepageData 回退解析到 {len(devices)} 个设备")
+                    else:
+                        # 设备列表可能藏在其他键下，输出截断的原始内容用于诊断
+                        _LOGGER.warning(f"queryHomepageData 无 deviceList，原始内容(截断): {str(homepage_data)[:2000]}")
+
             if not devices:
                 raise UpdateFailed("未解析到任何设备")
 
