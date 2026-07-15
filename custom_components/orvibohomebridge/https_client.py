@@ -207,11 +207,32 @@ class HttpsClient:
 
             # 解析设备状态数据
             data = resp["data"]
-            # 如果 data 是列表，取第一个元素
-            if isinstance(data, list) and len(data) > 0:
-                data = data[0]
+            # data 可能是列表：服务器按表分块返回（第一块是 account/gateway 等元数据表，
+            # device/deviceStatus 表在后续块中），必须合并全部块，只取第一块会丢失设备表
+            if isinstance(data, list):
+                _LOGGER.info(f"readtable 返回 {len(data)} 个数据块，keys: "
+                             f"{[list(e.keys()) if isinstance(e, dict) else type(e).__name__ for e in data]}")
+                merged: Dict[str, Any] = {}
+                for element in data:
+                    if not isinstance(element, dict):
+                        continue
+                    for key, value in element.items():
+                        if key not in merged:
+                            merged[key] = value
+                        elif isinstance(merged[key], list) and isinstance(value, list):
+                            merged[key] = merged[key] + value
+                        elif isinstance(merged[key], dict) and isinstance(value, dict):
+                            merged[key] = {**merged[key], **value}
+                data = merged
 
             _LOGGER.info(f"获取到原始设备数据，keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}")
+
+            # 设备表缺失时输出诊断信息（tableNameList/queryDataFlag 提示服务器分块或分页策略）
+            if isinstance(data, dict) and "device" not in data:
+                _LOGGER.warning(
+                    f"readtable 响应中缺少 device 表: tableNameList={data.get('tableNameList')}, "
+                    f"queryDataFlag={data.get('queryDataFlag')}, requestTime={data.get('requestTime')}"
+                )
             return data
         except Exception as e:
             _LOGGER.error("获取设备状态失败: %s", e)
@@ -811,10 +832,17 @@ class HttpsClient:
                     "online": self._parse_online_status(item.get("online")),
                     "properties": item.get("properties", {}),
                     "endpoint": item.get("endpoint", 0),
-                    "status": device_status.get(device_id, {}) if isinstance(device_status, dict) else {},
+                    "status": device_status_map.get(device_id, {}),
                 })
 
         _LOGGER.info(f"从 device_status 解析到 {len(devices)} 个设备")
+        if not devices:
+            _LOGGER.warning(
+                f"未解析到任何设备: 响应keys={list(device_status_data.keys())}, "
+                f"device表类型={type(device_info_list).__name__}, "
+                f"device表长度={len(device_info_list) if isinstance(device_info_list, (list, dict)) else 'N/A'}, "
+                f"deviceStatus数量={len(device_status_map)}"
+            )
         return devices
 
     async def fetch_homepage_data(self) -> Optional[Dict[str, Any]]:
