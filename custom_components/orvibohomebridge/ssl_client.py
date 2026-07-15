@@ -119,7 +119,7 @@ class SSLClient:
             _LOGGER.debug("SSL连接成功")
             return True
         except asyncio.TimeoutError:
-            _LOGGER.error("SSL连接服务器 [%s:%s] 超时", SSL_HOST, SSL_PORT)
+            _LOGGER.error("SSL连接服务器 [%s:%s] 超时", self.ssl_host, self.ssl_port)
             return False
         except OSError as e:
             _LOGGER.error("SSL连接发生IO错误: %s", e)

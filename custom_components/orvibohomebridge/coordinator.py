@@ -10,8 +10,10 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 from .ssl_client import SSLClient
 from .https_client import HttpsClient
 from .device_types import DeviceCategory, classify_device, is_hidden_category
+from .packet import get_api_host
 from .const import (
     SSL_HOST, SSL_PORT,
+    HTTPS_HOST, HTTPS_HOST_GLOBAL, SSL_HOST_GLOBAL,
     UPDATE_INTERVAL,
     DEVICE_TYPE_SWITCH,
     DEVICE_TYPE_LIGHT,
@@ -760,6 +762,49 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             f"main={dev_state['main_switch_state']}"
         )
 
+    async def _discover_devices(self):
+        """拉取并解析设备列表：readtable → getDeviceDesc → queryHomepageData 三层回退"""
+        device_status_data = await self.https_client.fetch_device_status()
+        if not device_status_data:
+            return None, []
+
+        devices = self.https_client.parse_device_status_list(device_status_data)
+        if not devices:
+            # readtable 未返回设备表时，回退到 getDeviceDesc API 构建设备列表
+            # （getDeviceDesc 返回的设备条目字段与 readtable device 表兼容）
+            _LOGGER.warning("readtable 未解析到设备，回退到 getDeviceDesc 构建设备列表...")
+            desc_data = await self.https_client.fetch_device_desc(last_update_time=0)
+            if desc_data:
+                desc_devices = desc_data.get("deviceDescList", desc_data.get("devices", []))
+                if isinstance(desc_devices, list) and desc_devices:
+                    devices = self.https_client.parse_device_status_list(
+                        {"device": desc_devices, "deviceStatus": {}}
+                    )
+                    _LOGGER.info(f"getDeviceDesc 回退解析到 {len(devices)} 个设备")
+                else:
+                    _LOGGER.warning(f"getDeviceDesc deviceDescList 为空 (类型={type(desc_devices).__name__})")
+
+        if not devices:
+            # 第三层回退：queryHomepageData 家庭主页 API（WiFi直连设备如门锁
+            # 可能不在网关设备表中，只出现在家庭设备列表里）
+            _LOGGER.warning("getDeviceDesc 未构建到设备，回退到 queryHomepageData...")
+            homepage_data = await self.https_client.fetch_homepage_data()
+            if isinstance(homepage_data, dict):
+                _LOGGER.info(f"queryHomepageData 返回键: {list(homepage_data.keys())}")
+                homepage_devices = homepage_data.get("deviceList", homepage_data.get("device", [])) or []
+                if isinstance(homepage_devices, list) and homepage_devices:
+                    _LOGGER.info(f"queryHomepageData 设备数量: {len(homepage_devices)}, "
+                                 f"第一个设备内容(截断): {str(homepage_devices[0])[:1000]}")
+                    devices = self.https_client.parse_device_status_list(
+                        {"device": homepage_devices, "deviceStatus": {}}
+                    )
+                    _LOGGER.info(f"queryHomepageData 回退解析到 {len(devices)} 个设备")
+                else:
+                    # 设备列表可能藏在其他键下，输出截断的原始内容用于诊断
+                    _LOGGER.warning(f"queryHomepageData 无 deviceList，原始内容(截断): {str(homepage_data)[:2000]}")
+
+        return device_status_data, devices
+
     async def _async_setup(self):
         try:
             if self.family_id:
@@ -770,45 +815,22 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
                 raise UpdateFailed("HTTPS登录失败")
 
             _LOGGER.debug("第一步：拉取设备列表...")
-            device_status_data = await self.https_client.fetch_device_status()
-            if not device_status_data:
+            device_status_data, devices = await self._discover_devices()
+
+            if not devices and get_api_host() == HTTPS_HOST:
+                # 中国区云端家庭为空时，尝试国际区集群（Orvibo Home 海外账号
+                # 的家庭/设备数据存储在国际区，与中国区独立分区）
+                _LOGGER.warning(f"中国区云端未发现任何设备，尝试国际区服务器 {HTTPS_HOST_GLOBAL} ...")
+                await self.https_client.switch_host(HTTPS_HOST_GLOBAL)
+                if await self.https_client.ensure_login():
+                    device_status_data, devices = await self._discover_devices()
+                    if devices:
+                        _LOGGER.warning(f"国际区服务器发现 {len(devices)} 个设备，本实例将使用国际区云端")
+                else:
+                    _LOGGER.error("国际区服务器登录失败")
+
+            if device_status_data is None and not devices:
                 raise UpdateFailed("获取设备列表失败")
-
-            devices = self.https_client.parse_device_status_list(device_status_data)
-            if not devices:
-                # readtable 未返回设备表时，回退到 getDeviceDesc API 构建设备列表
-                # （getDeviceDesc 返回的设备条目字段与 readtable device 表兼容）
-                _LOGGER.warning("readtable 未解析到设备，回退到 getDeviceDesc 构建设备列表...")
-                desc_data = await self.https_client.fetch_device_desc(last_update_time=0)
-                if desc_data:
-                    desc_devices = desc_data.get("deviceDescList", desc_data.get("devices", []))
-                    if isinstance(desc_devices, list) and desc_devices:
-                        devices = self.https_client.parse_device_status_list(
-                            {"device": desc_devices, "deviceStatus": {}}
-                        )
-                        _LOGGER.info(f"getDeviceDesc 回退解析到 {len(devices)} 个设备")
-                    else:
-                        _LOGGER.warning(f"getDeviceDesc deviceDescList 为空 (类型={type(desc_devices).__name__})")
-
-            if not devices:
-                # 第三层回退：queryHomepageData 家庭主页 API（WiFi直连设备如门锁
-                # 可能不在网关设备表中，只出现在家庭设备列表里）
-                _LOGGER.warning("getDeviceDesc 未构建到设备，回退到 queryHomepageData...")
-                homepage_data = await self.https_client.fetch_homepage_data()
-                if isinstance(homepage_data, dict):
-                    _LOGGER.info(f"queryHomepageData 返回键: {list(homepage_data.keys())}")
-                    homepage_devices = homepage_data.get("deviceList", homepage_data.get("device", [])) or []
-                    if isinstance(homepage_devices, list) and homepage_devices:
-                        _LOGGER.info(f"queryHomepageData 设备数量: {len(homepage_devices)}, "
-                                     f"第一个设备内容(截断): {str(homepage_devices[0])[:1000]}")
-                        devices = self.https_client.parse_device_status_list(
-                            {"device": homepage_devices, "deviceStatus": {}}
-                        )
-                        _LOGGER.info(f"queryHomepageData 回退解析到 {len(devices)} 个设备")
-                    else:
-                        # 设备列表可能藏在其他键下，输出截断的原始内容用于诊断
-                        _LOGGER.warning(f"queryHomepageData 无 deviceList，原始内容(截断): {str(homepage_data)[:2000]}")
-
             if not devices:
                 raise UpdateFailed("未解析到任何设备")
 
@@ -1108,9 +1130,11 @@ class OrviboMeshCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
             self.hass.add_job(self.async_set_updated_data, self.device_states)
             _LOGGER.debug(f"[{matched_device_id}] MQTT状态同步完成: state={dev_state.get('state')}, bri={dev_state.get('brightness')}, ct={dev_state.get('color_temp')}, pos={dev_state.get('position')}")
 
+        # SSL 控制通道跟随 HTTPS API 所在区域（中国区/国际区）
+        ssl_host = SSL_HOST_GLOBAL if get_api_host() == HTTPS_HOST_GLOBAL else SSL_HOST
         self.ssl_client = SSLClient(
             hass=self.hass,
-            ssl_host=SSL_HOST,
+            ssl_host=ssl_host,
             ssl_port=SSL_PORT,
             username=self.username,
             password=self.password,

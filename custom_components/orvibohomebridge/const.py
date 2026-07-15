@@ -32,6 +32,9 @@ DOMAIN = "orvibohomebridge"
 MANUFACTURER = "ORVIBO"
 
 HTTPS_HOST = "china.orvibo.com"
+# 国际区集群（Orvibo Home 海外用户，数据与中国区独立分区）
+HTTPS_HOST_GLOBAL = "homemate.orvibo.com"
+SSL_HOST_GLOBAL = "homemate.orvibo.com"
 HTTP_HEADERS = {
     "Content-Type": "application/json; charset=utf-8",
     "User-Agent": "okhttp/3.12.8",

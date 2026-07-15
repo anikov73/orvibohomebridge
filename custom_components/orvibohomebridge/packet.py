@@ -26,6 +26,19 @@ from .const import (
     CMD_CLOTHES_HORSE_CONTROL, CMD_CLOTHES_HORSE_QUERY,
 )
 
+# 当前 HTTPS API 主机（模块级，可在运行时切换：中国区/国际区数据分区独立）
+# 注意：同一 HA 实例的多个配置条目共享该值
+_api_host = HTTPS_HOST
+
+
+def set_api_host(host: str) -> None:
+    global _api_host
+    _api_host = host
+
+
+def get_api_host() -> str:
+    return _api_host
+
 
 class HomematePacket:
     def __init__(self, data: bytes, keys: dict):
@@ -748,18 +761,18 @@ class HomemateJsonData:
 
     @classmethod
     def get_access_token_by_password(cls, username: str, password: str):
-        url = f"https://{HTTPS_HOST}/getOauthToken?userName={username}&type=0&password={password}"
+        url = f"https://{get_api_host()}/getOauthToken?userName={username}&type=0&password={password}"
         _LOGGER.debug(f"请求access_token: userName={username}, type=0 (password masked)")
         return {"url": url, "data": None}
 
     @classmethod
     def get_access_token_by_session_id(cls, session_id):
-        url = f"https://{HTTPS_HOST}/getOauthToken?type=0&sessionId={session_id}"
+        url = f"https://{get_api_host()}/getOauthToken?type=0&sessionId={session_id}"
         return {"url": url, "data": None}
 
     @classmethod
     def get_family_statistics_users(cls, user_id, access_token):
-        url = f"https://{HTTPS_HOST}/v2/family/statistics/users"
+        url = f"https://{get_api_host()}/v2/family/statistics/users"
 
         timestamp = generate_timestamp()
         random_str = generate_uuid()
@@ -786,7 +799,7 @@ class HomemateJsonData:
 
     @classmethod
     def get_homepage_data(cls, family_id, user_id, access_token):
-        url = f"https://{HTTPS_HOST}/v2/family/config/queryHomepageData"
+        url = f"https://{get_api_host()}/v2/family/config/queryHomepageData"
 
         timestamp = generate_timestamp()
         random_str = generate_uuid()
@@ -820,7 +833,7 @@ class HomemateJsonData:
         device_flag=0 时服务器可能只返回账户级表(account/gateway)，
         device_flag=1 用于请求设备级表(device/deviceStatus)
         """
-        url = f"https://{HTTPS_HOST}/v2/cmd/app/readtable"
+        url = f"https://{get_api_host()}/v2/cmd/app/readtable"
 
         random_str = generate_uuid()
         serial = generate_serial()

@@ -92,6 +92,18 @@ class HttpsClient:
         data = await resp.text()
         return json.loads(data)
 
+    async def switch_host(self, host: str) -> None:
+        """切换云端主机（中国区/国际区数据独立分区），清空登录态以便重新认证"""
+        from .packet import set_api_host
+        set_api_host(host)
+        self.access_token = None
+        self.user_id = None
+        self.session_id = None
+        self.family_id = None
+        self.family_name = None
+        self.family_list = []
+        _LOGGER.warning(f"已切换云端主机为 {host}，将重新登录")
+
     async def ensure_login(self) -> bool:
         if not self.session:
             await self._connect()
@@ -268,7 +280,8 @@ class HttpsClient:
                 _LOGGER.error("accessToken 为空")
                 return None
 
-            url = f"https://china.orvibo.com/getDeviceDesc?source=ZhiJia365&lastUpdateTime={last_update_time}&accessToken={self.access_token}"
+            from .packet import get_api_host
+            url = f"https://{get_api_host()}/getDeviceDesc?source=ZhiJia365&lastUpdateTime={last_update_time}&accessToken={self.access_token}"
             
             headers = {
                 **HTTP_HEADERS,
